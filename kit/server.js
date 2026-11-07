@@ -16,6 +16,7 @@ const pkgs = require('./package');
 const link = require('./girafe-link');
 const compat = require('./compat');
 const updater = require('./updater');
+const nodeRuns = require('./node-runs');
 const github = require('./github');
 
 const WEB = path.join(__dirname, '..', 'web');
@@ -24,6 +25,8 @@ const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; c
 const CSP = "default-src 'self'; connect-src 'self'; img-src 'self' blob: data:; media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 const runs = new Map(); // runId -> { run, at }
 const MAX_UPLOAD = 25 * 1024 * 1024;
+const MAX_MODEL_UPLOAD = 150 * 1024 * 1024; // a 3D model for a file field (host API 2)
+const MODEL_EXT = { glb: 'model/gltf-binary', fbx: 'model/fbx', obj: 'model/obj', stl: 'model/stl' };
 
 function send(res, status, body, headers = {}) {
   const isBuf = Buffer.isBuffer(body);
@@ -66,6 +69,11 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === '/api/update') {
     try { return send(res, 200, await updater.start()); }
     catch (e) { return send(res, e.code === 'cannot-update' ? 409 : 502, { error: e.message, code: e.code || null }); }
+  }
+  // display "runs" (host API 2): what a node kept over its last runs.
+  if ((k = m(/^\/api\/node-runs\/([A-Za-z0-9_-]{1,64})$/))) {
+    if (req.method === 'GET') return send(res, 200, { runs: nodeRuns.list(k[1]) });
+    if (req.method === 'DELETE') { nodeRuns.clear(k[1]); return send(res, 200, { ok: true }); }
   }
   if (req.method === 'GET' && p === '/api/kinds') return send(res, 200, { core: core.describe(), plugins: plugins.listPlugins() });
 
@@ -143,9 +151,13 @@ async function handle(req, res) {
   }
 
   if (req.method === 'POST' && p === '/api/files') {
-    const mime = String(req.headers['content-type'] || '').split(';')[0];
-    if (!/^image\/(png|jpeg|webp|gif)$/.test(mime)) return send(res, 400, { error: 'PNG, JPEG, WebP or GIF only' });
-    const buf = await readBody(req, MAX_UPLOAD);
+    let mime = String(req.headers['content-type'] || '').split(';')[0];
+    const ext = (String(url.searchParams.get('name') || '').toLowerCase().match(/\.(glb|fbx|obj|stl)$/) || [])[1];
+    // A 3D model (for a file field): told by its name, browsers rarely know its type.
+    if (ext) mime = MODEL_EXT[ext];
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(mime) && !Object.values(MODEL_EXT).includes(mime)) return send(res, 400, { error: 'PNG, JPEG, WebP or GIF pictures, or GLB, FBX, OBJ or STL models only' });
+    const buf = await readBody(req, ext ? MAX_MODEL_UPLOAD : MAX_UPLOAD);
+    if (mime === 'model/gltf-binary' && buf.subarray(0, 4).toString('latin1') !== 'glTF') return send(res, 400, { error: 'This .glb file is not a GLB model.' });
     const f = store.saveFile(buf, mime);
     return send(res, 200, { ref: { imageUrl: '/files/' + f.key, key: f.key, mime: f.mime, size: f.size, name: String(url.searchParams.get('name') || '').slice(0, 120) || undefined } });
   }

@@ -3,6 +3,15 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.5.0 (2026-11-07)
+
+- Host API 2 (still a draft, GIRAFE 0.69.0) gains what the rest of the Tripo pack needs:
+  - `"type": "file"` fields (`accept`, `multiple`): files chosen in the node's panel, read with
+    `ctx.files.read`. The kit takes pictures and 3D models (GLB, FBX, OBJ, STL, 150 MB).
+  - `"outputs": []`: a node that sends nothing on; what it returns is shown on it.
+  - `"display": "runs"`: the host keeps what reached the node over its last 10 runs and shows
+    them (latest, then earlier), pictures and 3D models included.
+
 ## 0.4.0 (2026-11-07)
 
 - **Kit and GIRAFE check each other's version.** The kit asks GIRAFE what it runs

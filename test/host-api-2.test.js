@@ -101,3 +101,33 @@ test('manifest rules for host API 2', () => {
   assert.equal(plugins.hostAllowed({ network: ['*.tripo3d.com'] }, 'tripo3d.com.evil.net'), false);
   assert.equal(plugins.hostAllowed({ network: ['*.tripo3d.com'] }, 'eviltripo3d.com'), false);
 });
+
+test('file fields, nodes with no outputs, and runs kept by the host', async () => {
+  const engine = require('../kit/engine');
+  const nodeRuns = require('../kit/node-runs');
+  const base = { id: 'x', name: 'x', version: '1.0.0', girafe: '>=0.69.0' };
+  assert.deepEqual(plugins.checkManifest({ ...base, hostApi: 2, outputs: [], display: 'runs', fields: [{ key: 'm', type: 'file', accept: '.glb', multiple: true }] }, 'x'), []);
+  const v1 = plugins.checkManifest({ ...base, hostApi: 1, outputs: [], display: 'runs', fields: [{ key: 'm', type: 'file' }] }, 'x');
+  assert.ok(v1.some((p) => /"outputs": \[\].*hostApi/.test(p)));
+  assert.ok(v1.some((p) => /"display": "runs" needs/.test(p)));
+  assert.ok(v1.some((p) => /file fields need/.test(p)));
+  assert.ok(plugins.checkManifest({ ...base, hostApi: 2, display: 'grid' }, 'x').some((p) => /only "runs"/.test(p)));
+
+  plugin('shelf', { outputs: [], display: 'runs', inputs: { min: 1, max: 4 } }, 'module.exports = { run: (ctx) => Object.values(ctx.inputs) };');
+  plugin('noemit', { outputs: [] }, 'module.exports = { async run(ctx) { await ctx.emit("out", 1); } };');
+  plugin('filefield', { fields: [{ key: 'files', type: 'file', multiple: true }], capabilities: { files: 'read' } },
+    'module.exports = { async run(ctx) { const f = ctx.settings.files[0]; const r = await ctx.files.read(f); return r.bytes.toString() + "|" + ctx.isFile(f); } };');
+  const run = (graph) => engine.createRun(graph).promise;
+  for (const word of ['one', 'two']) {
+    const rs = await run({ nodes: [{ id: 'i', type: 'input', value: word }, { id: 's', type: 'plugin:shelf' }], wires: [{ id: 'w', from: 'i', to: 's', port: 'out' }] });
+    assert.equal(rs.nodes.s.status, 'done');
+    assert.deepEqual(rs.nodes.s.outputs, [word], 'what it returned is shown on the node');
+  }
+  const kept = nodeRuns.list('s');
+  assert.deepEqual(kept.map((r) => r.values[0]), ['two', 'one'], 'newest run first');
+  const bad = await run({ nodes: [{ id: 'i', type: 'input', value: 'x' }, { id: 'n', type: 'plugin:noemit' }], wires: [{ id: 'w', from: 'i', to: 'n', port: 'out' }] });
+  assert.match(bad.nodes.n.note, /no outputs/);
+  const f = store.saveFile(Buffer.from('MODELDATA'), 'model/gltf-binary');
+  const ff = await run({ nodes: [{ id: 'q', type: 'plugin:filefield', settings: { files: [{ imageUrl: '/files/' + f.key, key: f.key, mime: f.mime, name: 'a.glb' }] } }], wires: [] });
+  assert.deepEqual(ff.nodes.q.outputs, ['MODELDATA|true'], 'a file chosen in the panel is readable like an input file');
+});

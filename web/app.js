@@ -281,7 +281,9 @@ function renderPorts(n, k) {
       el('span', { class: 'pm-port-label pm-port-label-empty', text: letter(incoming.length) })));
   }
   const outs = el('div', { class: 'pm-ports-out' });
-  if (namedOuts(k)) {
+  if (k.outputs && !k.outputs.length) {
+    // "outputs": [] (host API 2): the node keeps or shows what reaches it, nothing goes on.
+  } else if (namedOuts(k)) {
     for (const p of k.outputs) {
       const onExit = wiresOutOf(n.id).filter((w) => w.port === p);
       outs.append(el('div', { class: 'pm-port-out' }, el('span', { class: 'pm-port-label', text: outLabel(n, p) }),
@@ -516,7 +518,7 @@ function renderPanel() {
     const isPlugin = n.type.startsWith('plugin:');
     const get = () => (isPlugin ? n.settings?.[f.key] : n[f.key]);
     const set = (v) => { if (isPlugin) { n.settings = { ...(n.settings || {}), [f.key]: v }; } else n[f.key] = v; changed({ undoable: false, panel: false }); };
-    kids.push(f.type === 'image' ? imageField(n) : f.type === 'key' ? keyField(f, get(), set) : f.type === 'model' ? modelField(f, n, get(), set) : field(f, get() ?? (f.default ?? ''), set));
+    kids.push(f.type === 'image' ? imageField(n) : f.type === 'key' ? keyField(f, get(), set) : f.type === 'model' ? modelField(f, n, get(), set) : f.type === 'file' ? fileField(f, get(), set) : field(f, get() ?? (f.default ?? ''), set));
   }
   {
     const ins = dataWiresInto(n.id), flows = flowWiresInto(n.id);
@@ -526,11 +528,12 @@ function renderPanel() {
       rows.length ? rows.map((t) => el('div', { class: 'muted', text: t })) : el('div', { class: 'muted', text: 'Nothing wired in yet.' })));
   }
   if (!k.core && !k.missing) kids.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Manifest' }),
-    el('div', { class: 'caps', text: `host API ${k.hostApi} · needs GIRAFE ${k.girafe || 'any'} · outputs: ${(k.outputs || []).join(', ')}` }),
+    el('div', { class: 'caps', text: `host API ${k.hostApi} · needs GIRAFE ${k.girafe || 'any'} · outputs: ${(k.outputs || []).length ? k.outputs.join(', ') : 'none (it keeps what reaches it)'}${k.display === 'runs' ? ' · keeps its last runs' : ''}` }),
     el('div', { class: 'caps', text: 'It may: ' + capsText(k.capabilities) }),
     el('div', { class: 'caps', text: `folder: workspace/nodes/${k.id}/` })));
   if (!k.core && !k.missing) kids.push(packBox(k));
-  if (st) kids.push(runBox(st));
+  if (st && !(k.display === 'runs')) kids.push(runBox(st));
+  if (k.display === 'runs') kids.push(runsBox(n, st));
   kids.push(el('div', { class: 'row' }, el('button', { text: n.disabled ? '● Turn on' : '○ Turn off', onclick: () => { n.disabled = !n.disabled; changed(); } }), el('button', { class: 'danger', text: '🗑 Delete', onclick: deleteSelected })));
   p.replaceChildren(...kids);
 }
@@ -738,6 +741,55 @@ function imageField(n) {
   zone.addEventListener('dragleave', () => zone.classList.remove('over'));
   zone.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('over'); upload(e.dataTransfer.files[0]); });
   return el('div', { class: 'field' }, el('label', { text: 'Picture' }), zone, pick);
+}
+// A file field (host API 2): files chosen in the panel, kept as references in the node's settings.
+function fileField(f, value, set) {
+  const list = (Array.isArray(value) ? value : value ? [value] : []).filter(isRef);
+  const pick = el('input', { type: 'file', accept: f.accept || '', multiple: !!f.multiple, hidden: true });
+  const upload = async (files) => {
+    const got = [];
+    for (const file of [...files].slice(0, f.multiple ? 20 : 1)) {
+      try {
+        const r = await fetch('/api/files?name=' + encodeURIComponent(file.name), { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+        const d = await r.json(); if (!r.ok) throw new Error(d.error);
+        got.push({ ...d.ref, name: file.name });
+      } catch (e) { flash(`${file.name}: ${e.message}`); }
+    }
+    if (!got.length) return;
+    set(f.multiple ? [...list, ...got.filter((g) => !list.some((r) => r.key === g.key))] : got[0]); renderPanel();
+  };
+  pick.addEventListener('change', () => upload(pick.files));
+  const zone = el('div', { class: 'img-drop', onclick: () => pick.click() }, f.multiple ? 'Drop files here, or click to add some' : (list.length ? 'Click or drop to replace' : 'Drop a file here, or click to choose one'));
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('over'); upload(e.dataTransfer.files); });
+  const rows = list.map((r, i) => el('div', { class: 'file-row' },
+    el('span', { text: `${f.multiple ? (i + 1) + '. ' : ''}${isModel(r) ? '🧊' : '📄'} ${r.name || r.key}${r.size ? ' · ' + mb(r.size) : ''}` }),
+    el('button', { class: 'link', text: '✕', title: 'Remove', onclick: () => { const next = list.filter((_, j) => j !== i); set(f.multiple ? next : null); renderPanel(); } })));
+  return el('div', { class: 'field' }, el('label', { text: f.label || f.key }), ...rows, zone, pick);
+}
+// display "runs" (host API 2): the latest run and the earlier ones the host kept for this node.
+function valuesView(values) {
+  const pics = picsOf(values);
+  if (!pics.length) return values.slice(0, 50).map((v) => el('div', { class: 'out-item', text: typeof v === 'string' ? v : JSON.stringify(v, null, 2) }));
+  return [el('div', { class: 'thumbs' }, ...pics.map((r) => (isModel(r)
+    ? el('div', { class: 'model-card' }, thumbOf(r) ? el('img', { src: thumbOf(r), alt: '' }) : el('div', { class: 'pm-model-tile', text: '🧊' }),
+      el('div', {}, el('b', { text: r.name || '3D model' }), el('div', { class: 'muted', text: [r.size ? mb(r.size) : '', r.rig ? '🦴 ' + (r.rig.type || 'rigged') : '', r.animation ? '🏃 ' + (r.animation.name || '') : ''].filter(Boolean).join(' · ') }),
+        el('a', { href: r.imageUrl, download: r.name || 'model.glb', text: '⬇ Download' })))
+    : el('a', { href: r.imageUrl, target: '_blank' }, el('img', { src: r.imageUrl, alt: '' })))))];
+}
+function runsBox(n, st) {
+  const box = el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Runs kept here' }), el('div', { class: 'muted', text: 'Loading…' }));
+  api('/api/node-runs/' + encodeURIComponent(n.id)).then(({ runs }) => {
+    const parts = [el('div', { class: 'box-title', text: `Runs kept here (${runs.length})` })];
+    if (st && st.note && st.status === 'error') parts.push(el('div', { class: 'problems', text: st.note }));
+    if (!runs.length) parts.push(el('div', { class: 'muted', text: 'Nothing yet: run the graph, and what reaches this node is kept here, run after run.' }));
+    runs.forEach((r, i) => parts.push(el('div', { class: i ? 'run-earlier' : 'run-latest' },
+      el('div', { class: 'muted', text: `${i ? 'Earlier run' : 'Latest'} · ${new Date(r.at).toLocaleString()}` }), ...valuesView(r.values))));
+    if (runs.length) parts.push(el('div', { class: 'row' }, el('button', { class: 'danger', text: 'Forget these runs', onclick: async () => { await api('/api/node-runs/' + encodeURIComponent(n.id), { method: 'DELETE' }); renderPanel(); } })));
+    box.replaceChildren(...parts);
+  }).catch((e) => box.replaceChildren(el('div', { class: 'problems', text: e.message })));
+  return box;
 }
 function runBox(st) {
   const pics = picsOf(st.outputs || []);

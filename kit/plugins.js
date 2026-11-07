@@ -35,7 +35,7 @@ function hostAllowed(caps, host) {
   return (caps.network || []).some((h) => h === host || (h.startsWith('*.') && host.endsWith(h.slice(1))));
 }
 
-const FIELD_TYPES = new Set(['text', 'textarea', 'number', 'select', 'checkbox']);
+const FIELD_TYPES = new Set(['text', 'textarea', 'number', 'select', 'checkbox', 'file']);
 const CHILD = path.join(__dirname, 'sandbox-child.js');
 const TIMEOUT_MS = 60_000;
 const MEMORY_MB = 128;
@@ -64,10 +64,15 @@ function checkManifest(m, dirName) {
   if (!girafeOk(m.girafe)) problems.push(`needs GIRAFE ${m.girafe}, this is ${GIRAFE_VERSION}`);
   if (m.category !== undefined && (typeof m.category !== 'string' || !m.category.trim() || m.category.length > 40)) problems.push('"category": a short name (40 characters at most)');
   const outs = m.outputs ?? ['out'];
-  if (!Array.isArray(outs) || !outs.length || outs.some((o) => !/^[a-z][a-z0-9_]{0,23}$/.test(o))) problems.push('"outputs": a list of short lowercase names, like ["out"] or ["yes", "no"]');
+  if (!Array.isArray(outs) || outs.some((o) => !/^[a-z][a-z0-9_]{0,23}$/.test(o))) problems.push('"outputs": a list of short lowercase names, like ["out"] or ["yes", "no"]');
+  else if (!outs.length && !(m.hostApi >= 2)) problems.push('"outputs": [] (a node that sends nothing on) needs "hostApi": 2');
+  if (m.display !== undefined && m.display !== 'runs') problems.push('"display": only "runs" exists');
+  else if (m.display === 'runs' && !(m.hostApi >= 2)) problems.push('"display": "runs" needs "hostApi": 2');
   for (const f of m.fields || []) {
     if (!f || !/^[a-zA-Z][a-zA-Z0-9_]{0,31}$/.test(f.key || '')) problems.push(`field ${JSON.stringify(f && f.key)}: bad key`);
     else if (!FIELD_TYPES.has(f.type)) problems.push(`field "${f.key}": type must be one of ${[...FIELD_TYPES].join(', ')}`);
+    else if (f.type === 'file' && !(m.hostApi >= 2)) problems.push(`field "${f.key}": file fields need "hostApi": 2`);
+    else if (f.type === 'file' && f.accept !== undefined && (typeof f.accept !== 'string' || f.accept.length > 200)) problems.push(`field "${f.key}": "accept" is a short list like ".glb,.fbx" or "image/*"`);
     else if (f.type === 'select' && !Array.isArray(f.options)) problems.push(`field "${f.key}": a select needs "options"`);
   }
   const caps = m.capabilities || {};
@@ -116,6 +121,7 @@ function listPlugins() {
       fields: (m && m.fields) || [],
       capabilities: (m && m.capabilities) || {},
       limits: (m && m.limits) || null,
+      display: (m && m.display) || null,
       hostApi: m && m.hostApi,
       girafe: m && m.girafe,
       problems,
@@ -129,7 +135,8 @@ function getPlugin(id) {
 }
 
 // Runs one firing. `inputs` = { A: value, B: value }, values as they travel between nodes.
-// Resolves to { outputs: [{ port, value }], logs, progress } or rejects with a clear Error.
+// Resolves to { outputs: [{ port, value }], shown: [values], logs } or rejects with a clear Error.
+// `shown`: what a node with no outputs returned (it goes nowhere; the host shows it).
 function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgress, nodeId }) {
   return new Promise((resolve, reject) => {
     if (plugin.problems.length) return reject(new Error(`${plugin.name} can't run: ${plugin.problems[0]}`));
@@ -143,6 +150,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
       env: {}, // a plugin sees no environment variables: no keys, no paths
     });
     const outputs = [];
+    const shown = []; // a node with no outputs: what it returned, shown by the host (display "runs")
     const logs = [];
     let done = false;
     const finish = (err, val) => {
@@ -162,6 +170,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
     // The host side of the host API. Every capability a plugin uses comes through here.
     const host = {
       emit({ port, value }) {
+        if (!plugin.outputs.length) throw new Error('this node has no outputs ("outputs": []): return what it should show instead');
         if (!plugin.outputs.includes(port)) throw new Error(`no output called "${port}" (the manifest lists ${plugin.outputs.join(', ')})`);
         if (outputs.length >= 1000) throw new Error('more than 1000 packets from one firing');
         outputs.push({ port, value: toWire(value) });
@@ -294,11 +303,12 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
         if (msg.ok) {
           if (msg.returned !== undefined) {
             const r = msg.returned;
-            if (r && typeof r === 'object' && !Array.isArray(r) && Object.keys(r).every((k) => plugin.outputs.includes(k))) {
+            if (!plugin.outputs.length) { for (const v of Array.isArray(r) ? r : [r]) if (v !== undefined && v !== null && shown.length < 200) shown.push(toWire(v)); }
+            else if (r && typeof r === 'object' && !Array.isArray(r) && Object.keys(r).every((k) => plugin.outputs.includes(k))) {
               for (const [port, value] of Object.entries(r)) if (value !== undefined && value !== null) outputs.push({ port, value: toWire(value) });
             } else outputs.push({ port: plugin.outputs[0], value: toWire(r) });
           }
-          finish(null, { outputs, logs });
+          finish(null, { outputs, shown, logs });
         } else finish(new Error(msg.error || 'the node failed'));
       }
     });

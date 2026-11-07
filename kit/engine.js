@@ -11,6 +11,7 @@
 const crypto = require('crypto');
 const core = require('./core-nodes');
 const plugins = require('./plugins');
+const nodeRuns = require('./node-runs');
 
 const letter = (i) => { let s = ''; i += 1; while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; };
 
@@ -110,13 +111,16 @@ function createRun(graph, { onChange } = {}) {
                 onProgress: (t) => { st.note = t; changed(); },
               });
               for (const o of r.outputs) emit(o.port, o.value);
+              if (r.shown && r.shown.length) (result.shown = result.shown || []).push(...r.shown);
               if (r.logs.length) st.logs = (st.logs || []).concat(r.logs).slice(-200);
             }
             st.firings = i + 1; changed();
           }
           result.stream = (kind.core && kind.core.streams) || streams.length > 0 || Object.values(result.packets).some((v) => v.length > 1);
         }
-        const all = Object.values(result.packets).flat();
+        const all = Object.values(result.packets).flat().concat(result.shown || []);
+        // display "runs" (host API 2): the host keeps what reached the node, run after run.
+        if (kind.plugin && kind.plugin.display === 'runs') nodeRuns.record(n.id, all);
         st.outputs = all.slice(0, 200).map((v) => (typeof v === 'string' ? v.slice(0, 20000) : v));
         st.status = 'done';
         if (st.firings > 1 && (!st.note || kind.plugin)) st.note = `ran ${st.firings} times`;

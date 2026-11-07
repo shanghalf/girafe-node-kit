@@ -205,3 +205,10 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .v-prob { border-left: 3px solid var(--line); padding: 4px 8px; margin: 6px 0; font-size: 13px; }
 .v-prob.block { border-color: #ff7b7b; } .v-prob.warn { border-color: #f5b450; } .v-prob.info { border-color: #6fb3ff; }
 .v-restart { text-align: center; padding: 18px 8px; }
+
+/* File fields and kept runs (host API 2) */
+.file-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.run-latest, .run-earlier { margin-top: 8px; }
+.run-earlier { border-top: 1px dashed var(--line); padding-top: 8px; opacity: .85; }
+.thumbs:has(> .model-card) { grid-template-columns: 1fr; gap: 8px; }
+.model-card > div { min-width: 0; overflow-wrap: anywhere; }

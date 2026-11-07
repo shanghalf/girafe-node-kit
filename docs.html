@@ -42,7 +42,7 @@
 <div class="wrap">
 <nav>
   <div class="brand">🦒 GIRAFE node kit</div>
-  <div class="ver">Technical documentation · kit 0.4.0 · simulates GIRAFE 0.69.0 · host API 2</div>
+  <div class="ver">Technical documentation · kit 0.5.0 · simulates GIRAFE 0.69.0 · host API 2</div>
   <a href="#overview">1. Overview</a>
   <a href="#install">2. Install and start</a>
   <a href="#layout">3. Files and folders</a>
@@ -179,7 +179,8 @@ docs.html               this document</code></pre>
   <tr><td><code>POST /api/models</code></td><td>Models a key can use (asks its service, through the guard).</td></tr>
   <tr><td><code>POST /api/pack</code>, <code>GET /packages/:name</code></td><td>Pack a plugin node into a signed <code>.gnode</code>; download it.</td></tr>
   <tr><td><code>GET /api/girafe</code>, <code>POST /api/girafe/connect</code>, <code>POST /api/girafe/disconnect</code>, <code>POST /api/girafe/send</code></td><td>Link state; start the device link; unlink; pack and send a node to the linked account.</td></tr>
-  <tr><td><code>POST /api/files</code>, <code>GET /files/:key</code></td><td>Upload a picture (raw body, PNG/JPEG/WebP/GIF, 25 MB); serve a stored file.</td></tr>
+  <tr><td><code>POST /api/files</code>, <code>GET /files/:key</code></td><td>Upload a picture (raw body, PNG/JPEG/WebP/GIF, 25 MB) or, told by the <code>?name=</code> extension, a 3D model for a file field (GLB/FBX/OBJ/STL, 150 MB; a .glb must start with <code>glTF</code>); serve a stored file.</td></tr>
+  <tr><td><code>GET/DELETE /api/node-runs/:nodeId</code></td><td><code>"display": "runs"</code>: what the node kept over its last 10 runs (<code>kit/node-runs.js</code>, <code>workspace/.kit/node-runs.json</code>); forget them.</td></tr>
   <tr><td><code>POST /api/run</code>, <code>GET /api/runs/:id</code>, <code>POST /api/runs/:id/stop</code>, <code>POST /api/runs/:id/answer</code></td><td>Start a run (202 + id), poll its state, stop it, answer a Yes / No question.</td></tr>
   <tr><td><code>GET /</code>, <code>/app.js</code>…</td><td>The page, with the CSP header.</td></tr>
 </table>
@@ -237,6 +238,14 @@ docs.html               this document</code></pre>
   <li>returns <code>{ status, ok, json, text }</code> to the plugin. The key never crosses into the plugin's process.</li>
 </ol>
 <p>Manifests are checked: a slot's service must be <code>anthropic</code>, <code>openai</code> or <code>gemini</code> and its API host must be listed in <code>network</code>. Nodes written for host API 0 still run (<code>SUPPORTED_HOST_APIS</code>), without <code>ctx.http</code>. The first real plugin using it is <code>workspace/nodes/gemini-image</code> (GIRAFE's Generate image rebuilt as a plugin).</p>
+
+<h3>Host API 2: panel files, nodes with no outputs, kept runs</h3>
+<p>Besides long runs, <code>ctx.state</code>, <code>ctx.files.fromUrl</code> and forms, host API 2 has three things a manifest declares (all checked by <code>checkManifest</code>, refused below host API 2):</p>
+<ul>
+  <li><strong><code>"type": "file"</code> fields</strong> (<code>accept</code>, <code>multiple</code>): the panel uploads through <code>POST /api/files</code> (pictures, or 3D models told by the file name) and stores the references in <code>node.settings[key]</code>. The plugin reads them with <code>ctx.files.read</code>, like a file that came on an input.</li>
+  <li><strong><code>"outputs": []</code></strong>: no output socket is drawn; <code>ctx.emit</code> is refused; what <code>run</code> returns (a value or a list) is returned by <code>runPlugin</code> as <code>shown</code> and becomes the node's displayed output, going nowhere.</li>
+  <li><strong><code>"display": "runs"</code></strong>: after each firing round the engine hands what the node sent or showed to <code>kit/node-runs.js</code>, which keeps the last 10 runs per canvas node (newest first; 60 values, 40 000 characters each; file references only). The panel shows them as Latest and Earlier runs, pictures and 3D model cards included, with <em>Forget these runs</em>. GIRAFE's Result stack is this display.</li>
+</ul>
 
 <h3 id="page">The page</h3>
 <p><code>web/app.js</code> builds the canvas with plain DOM and SVG: nodes (220 px cards, GIRAFE's classes and colours), wires (curves coloured by source, green when delivered, grey dashes when dead), pointer-event dragging, wheel zoom, the panel (fields from the kind or the plugin manifest), the Yes / No dock, the Keys dialog. Graphs autosave half a second after a change; Ctrl+Z undoes structural changes.</p>
@@ -397,7 +406,7 @@ Referrer-Policy: no-referrer</code></pre>
 
 <h2 id="testing">8. Tests</h2>
 <pre><code>npm test     # node --test test/*.test.js</code></pre>
-<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. <code>test/host-api-2.test.js</code>: long runs, <code>ctx.state</code> kept per node across processes, a form carrying an input picture, a download kept as a file with no key sent, a host outside <code>network</code> refused, wildcard hosts, the tripo key as a Bearer token. <code>test/versions.test.js</code>: compat both ways against a fake GIRAFE (behind, kit too old, old GIRAFE, offline), a node refused before sending, the zip reader, an update end to end with a rollback, git pull and rollback. <code>test/github.test.js</code>: against a fake GitHub storing real git objects: connect checks, first save, only the node folder uploaded, changed / behind / conflict, backups, the key scan (nothing sent), history and restore, the token only in the header to GitHub. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
+<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. <code>test/host-api-2.test.js</code>: long runs, <code>ctx.state</code> kept per node across processes, a form carrying an input picture, a download kept as a file with no key sent, a host outside <code>network</code> refused, wildcard hosts, the tripo key as a Bearer token. <code>test/versions.test.js</code>: compat both ways against a fake GIRAFE (behind, kit too old, old GIRAFE, offline), a node refused before sending, the zip reader, an update end to end with a rollback, git pull and rollback. host API 2's file fields, nodes with no outputs and kept runs are in <code>test/host-api-2.test.js</code> too. <code>test/github.test.js</code>: against a fake GitHub storing real git objects: connect checks, first save, only the node folder uploaded, changed / behind / conflict, backups, the key scan (nothing sent), history and restore, the token only in the header to GitHub. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
 
 <h2 id="versions">9. Versions and releases</h2>
 <p>Three numbers, in <code>kit/version.js</code>:</p>

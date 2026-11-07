@@ -135,7 +135,7 @@ test('update end to end: swap, restart, keep the workspace; a broken release is 
     try {
       const portFile = path.join(T, 'workspace', '.kit', 'port');
       const port = await until(() => fs.existsSync(portFile) && Number(fs.readFileSync(portFile, 'utf8')));
-      assert.equal((await until(() => info(port))).kit, '0.4.0');
+      assert.equal((await until(() => info(port))).kit, require('../kit/version').KIT_VERSION);
 
       // a good release
       release = { version: '9.9.9', zip: releaseZip(T, '9.9.9') };
@@ -147,7 +147,7 @@ test('update end to end: swap, restart, keep the workspace; a broken release is 
       assert.equal(fs.readFileSync(path.join(T, 'workspace', 'nodes', 'mine.txt'), 'utf8'), 'my work', 'workspace untouched');
       const last = JSON.parse(fs.readFileSync(path.join(T, 'workspace', '.kit', 'update', 'last.json'), 'utf8'));
       assert.equal(last.ok, true);
-      assert.ok(fs.readdirSync(path.join(T, 'workspace', '.kit', 'update')).some((d) => d.startsWith('backup-0.4.0')));
+      assert.ok(fs.readdirSync(path.join(T, 'workspace', '.kit', 'update')).some((d) => d.startsWith('backup-' + require('../kit/version').KIT_VERSION)));
 
       // a release that crashes on start: put back, 9.9.9 runs again
       release = { version: '9.9.10', zip: releaseZip(T, '9.9.10', (rel, f) => { if (rel === 'kit/server.js') f.data = Buffer.from('throw new Error("broken release");'); }) };
