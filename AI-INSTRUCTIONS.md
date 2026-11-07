@@ -32,7 +32,12 @@ Start from a copy of `workspace/nodes/example-upper/`.
    when old graphs would behave differently.
 9. **The panel is the manifest.** Settings are `fields`; keep labels short and plain.
    Give every field a sensible `default`.
-10. **Test it in the kit** before saying it works: build a small graph (Input → your node →
+10. **Say what it costs.** A node that pays a service (credits, per picture...) declares
+    `"billing"` (in its manifest, or the pack's `pack.json`) and calls `ctx.usage({ service,
+    units, taskId })` once it knows what a task cost - nothing for a result served from its own
+    cache. Fill in `balance`, `history` and `csv` when the service has them. See HOST_API.md,
+    *Billing*.
+11. **Test it in the kit** before saying it works: build a small graph (Input → your node →
     Collect), run it, read the node's note and log. If the node takes a list, test it after
     a For each too. Add or update a test in `test/` when you change the kit itself.
 

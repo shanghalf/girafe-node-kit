@@ -6,7 +6,8 @@ database, files or keys; everything goes through `ctx`.
 
 > **Status: live in GIRAFE 0.69.0.** Host API 2 added long runs (`limits`), `ctx.state`,
 > `ctx.files.fromUrl`, `ctx.http` forms, `"*.host"` network entries, the `tripo` key service,
-> `file` fields, nodes with no outputs, `"display": "runs"` and `"streams"`.
+> `file` fields, nodes with no outputs, `"display": "runs"` and `"streams"`; GIRAFE 0.73.0 added
+> `"billing"` and `ctx.usage` (see *Billing*).
 > Host API 1 added key slots and `ctx.http`. Nodes written for 0 and 1 still run
 > (`SUPPORTED_HOST_APIS` in `kit/version.js`). Additions keep the number; a change
 > that breaks existing nodes bumps it, and GIRAFE keeps the previous number running for a while.
@@ -44,6 +45,58 @@ workspace/nodes/tripo-pack/pack.json
   turns it on and off as one, and shows its nodes under its name. A member whose version didn't
   change is kept as it is; a changed member needs a higher version too.
 - Needs GIRAFE 0.70.0 or newer.
+- `billing` (optional): what the pack's service costs, see *Billing*. Written once here, it
+  applies to every member.
+
+### Billing (what your service costs)
+
+A node that pays an outside service (Tripo bills in credits, an image service per picture...)
+declares it, and reports what each run spent. GIRAFE then files the cost in the user's AI reports
+and Settings › Usage, with no knowledge of the service of its own. Host API 2, GIRAFE 0.73.0 or
+newer (the kit refuses to send it to an older GIRAFE).
+
+`"billing"` goes in `pack.json` (for every member) or in a node's `manifest.json`, one entry per
+key service the node pays with (the service must be one of its key slots):
+
+```
+"billing": [{
+  "service": "tripo", "unit": "credit", "units": "credits", "usdPerUnit": 0.01,
+  "balance": { "url": "https://openapi.tripo3d.ai/v3/account/balance", "left": "data.balance", "held": "data.frozen" },
+  "history": { "url": "https://openapi.tripo3d.ai/v3/account/usage/history?start_time={start}&end_time={end}&page_size=100&page_num={page}",
+               "items": "data.items", "ok": ["success"], "maxDays": 31,
+               "fields": { "taskId": "task_id", "units": "credits_consumed", "type": "type", "model": "model_version",
+                           "status": "status", "createdAt": "created_at", "completedAt": "completed_at" } },
+  "csv": { "taskId": "task_id", "units": "credits", "type": "type", "model": "model_version",
+           "status": "status", "createdAt": "create_time", "completedAt": "end_time" }
+}]
+```
+
+- `unit` / `units`: what the service counts in (singular, plural). `usdPerUnit`: your default price,
+  0 to 1000 dollars; each user can type their own in Settings › Usage.
+- `balance` (optional): a GET GIRAFE makes with the user's key to show the units left. `left` and
+  `held` are dot paths into the JSON answer.
+- `history` (optional): a GET listing past tasks, so earlier costs can be added to AI reports.
+  `{start}` / `{end}` (ISO dates) and `{page}` (1, 2...; GIRAFE stops at an empty page) are filled
+  in. `items` is the dot path to the list; `fields` says where each task's id, units, type, model,
+  status and dates are (`taskId` and `units` required). A status not in `ok` (default `success`,
+  `done`, `completed`) with no units counts as failed. `maxDays`: how far back the service goes.
+- `csv` (optional): the column names of the history file the service lets you export, for the
+  same import by file.
+- `balance` and `history` addresses must be https and on the service's own hosts: the user's key
+  is sent there, the same way as `ctx.http` with that key slot.
+
+In `node.js`, once you know what a task cost (usually when it finishes):
+
+```
+await ctx.usage({ service: 'tripo', units: task.credits_consumed, taskId, type: 'animate_rig' });
+```
+
+`taskId` (4 to 100 of `A-Z a-z 0-9 . _ : -`) makes it one row per task: report the same task twice
+and the row is updated, and the history import recognises it. `type` (the service's own name for
+the kind of task, as in its history), `label`, `model` and `failed: true` are optional. It returns
+`{ recorded, usd }`. Report nothing for a task served from your own cache (no new spend). A GIRAFE
+older than 0.73.0 has no `ctx.usage`: write `if (ctx.usage) await ctx.usage(...)` if your node may
+run there. The kit checks each report and shows it in the node's log (💲 line).
 
 ## manifest.json
 
@@ -130,6 +183,7 @@ module.exports = {
 | `await ctx.files.write(bytes, mime, name)` | Returns a reference to send on. Needs `files: "readwrite"`. 25 MB max. |
 | `await ctx.files.fromUrl(url, { name?, mime? })` | Host API 2. The host downloads the file (https, a host in `network`, no key sent, 200 MB, 20 min) and gives you its reference. For results too big to pass through your node's memory. Needs `files: "readwrite"`. |
 | `await ctx.state.get()` / `await ctx.state.set(obj)` | Host API 2. An object kept for this node on the canvas, across runs and restarts (256 KB). `set` saves at once: write down what you're waiting on (a task id) *before* waiting, so a Stop or a restart doesn't lose it. Keep file references there, never file contents. Needs `"state": true`. |
+| `await ctx.usage({ service, units, taskId?, type?, label?, model?, failed? })` | What this run spent at a service your package's `billing` describes. GIRAFE files it in AI reports and Settings › Usage. Returns `{ recorded, usd }`. See *Billing*. |
 | `await ctx.http({ slot?, method, url, headers?, json?, body?, form? })` | `{ status, ok, json, text }` (`json` when the answer is JSON, else `text`). https only, to a host in `network`. With `slot`, the host adds that key's login header. Login headers (`authorization`, `x-api-key`, `x-goog-api-key`…) can't be set by the node. 40 MB each way, 120 s. Sent through the kit's network guard and listed in 🔑 Keys > Network. Host API 2: `form: { field: "text", file: { file: ref, name? } }` sends a multipart form; a file is read by the host from a reference that arrived on an input. |
 
 ### Values and files

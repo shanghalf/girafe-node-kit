@@ -127,7 +127,7 @@ async function sendPack(packId) {
   const s = read();
   if (!s?.keyId) throw Object.assign(new Error('Connect to GIRAFE first.'), { needsLink: true });
   const packed = pkgs.packPack(packId);
-  const why = await compat.beforeSendPack(packed.manifests);
+  const why = await compat.beforeSendPack(packed.manifests, packed.pack);
   if (why) throw Object.assign(new Error(why.text), { code: why.code });
   const t = keys.use(s.keyId, 'girafe');
   try {

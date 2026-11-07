@@ -3,6 +3,15 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.7.0 (2026-11-07)
+
+- **Billing**: a node or pack that pays an outside service declares it in `"billing"` (unit, default
+  price, and optionally how to read the credits left, the usage history and its CSV export), and
+  reports each run's spend with `ctx.usage({ service, units, taskId })`. GIRAFE 0.73.0 files it in AI
+  reports and Settings › Usage. The kit checks the declaration and each report (💲 line in the log),
+  and refuses to send `billing` to an older GIRAFE. See HOST_API.md, *Billing*.
+- The kit simulates GIRAFE 0.73.0.
+
 ## 0.6.0 (2026-11-07)
 
 - **Packs**: nodes made for one use go in a pack (a folder with only `pack.json`, see HOST_API.md).

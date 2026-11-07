@@ -70,6 +70,8 @@ process.on('message', async (msg) => {
     ai: { ask: () => call('ai', {}) },
     // ctx.http({ slot?, method, url, headers?, json?, body?, form? }) -> { status, ok, json?, text? }
     http: (opts) => call('http', opts || {}),
+    // billing: what this run spent at a service the package's "billing" describes
+    usage: (report) => call('usage', report || {}),
   };
   try {
     lockModules();

@@ -96,4 +96,4 @@ function report() {
   return { stats: { ...stats }, log: log.slice(-100).reverse(), hosts: Object.fromEntries(Object.keys(OFFICIAL).map((s) => [s, hostsFor(s)])) };
 }
 
-module.exports = { send, note, mark, since, report, Blocked, AUTH_HEADER, hostsFor };
+module.exports = { send, note, mark, since, report, Blocked, AUTH_HEADER, hostsFor, OFFICIAL };

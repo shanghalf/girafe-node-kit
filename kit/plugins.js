@@ -98,6 +98,8 @@ function checkManifest(m, dirName) {
       else if (!netguard.hostsFor(k.service).slice(0, 1).every((h) => (caps.network || []).includes(h))) problems.push(`key slot "${k.slot}": add "${netguard.hostsFor(k.service)[0]}" to "network"`);
     }
   }
+  if (m.billing !== undefined && !(m.hostApi >= 2)) problems.push('"billing" needs "hostApi": 2');
+  else problems.push(...require('./billing').checkBilling(m.billing, (Array.isArray(caps.keys) ? caps.keys : []).map((k) => k && k.service), ''));
   return problems;
 }
 
@@ -132,6 +134,7 @@ function listPlugins() {
       hostApi: m && m.hostApi,
       girafe: m && m.girafe,
       category: (m && m.category) || null,
+      billing: (m && Array.isArray(m.billing) && m.billing) || [],
       pack: member[dir.name] || null,
       problems,
     });
@@ -177,6 +180,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
     child.stderr.on('data', (d) => keepLog(d.toString().trimEnd()));
 
     // The host side of the host API. Every capability a plugin uses comes through here.
+    let usageCount = 0;
     const host = {
       emit({ port, value }) {
         if (!plugin.outputs.length) throw new Error('this node has no outputs ("outputs": []): return what it should show instead');
@@ -236,6 +240,21 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
         } finally { clearTimeout(timer); signal && signal.removeEventListener('abort', stop); }
       },
       ai() { throw new Error('ctx.ai is not in the host API yet; call a service with ctx.http and a key slot.'); },
+      // ctx.usage (billing): what this firing spent at a service the package's "billing" describes.
+      // The kit checks it like GIRAFE and shows it in the node's log; GIRAFE files it in AI reports.
+      usage({ service, units, taskId, type, label, model, failed }) {
+        const packId = plugin.pack;
+        const packBilling = packId ? (require('./packs').readPack(packId).billing || []) : [];
+        const b = require('./billing').billingFor(plugin.billing, packBilling).find((x) => x && x.service === service);
+        if (!b) throw new Error(`ctx.usage: "${service}" is not in the package's "billing"`);
+        const n = Number(units);
+        if (!Number.isFinite(n) || n < 0 || n >= 1e6) throw new Error('ctx.usage: "units" is a number from 0');
+        if (++usageCount > 500) throw new Error('ctx.usage: more than 500 reports from one firing');
+        const usd = Math.round(n * (Number(b.usdPerUnit) || 0) * 10000) / 10000;
+        const word = n === 1 ? b.unit : (b.units || b.unit + 's');
+        keepLog(`💲 ${service}: ${n} ${word} (≈ $${usd})${taskId ? ' · task ' + String(taskId).slice(0, 100) : ''}${type ? ' · ' + String(type).slice(0, 40) : ''}${label ? ' · ' + String(label).slice(0, 120) : ''}${model ? ' · ' + String(model).slice(0, 60) : ''}${failed === true ? ' · failed' : ''}`);
+        return { recorded: true, usd };
+      },
       // ctx.http: the plugin's only way to the internet. The host adds the key of a declared slot
       // (the plugin never sees it) and sends through the network guard.
       async http({ slot, method = 'GET', url, headers = {}, json, body, form }) {

@@ -3,7 +3,8 @@
 // A pack is a folder in workspace/nodes/<pack-id>/ holding only pack.json:
 //   { "id": "tripo-pack", "name": "3D (Tripo)", "version": "0.1.0", "description": "...",
 //     "nodes": ["tripo-3d", "tripo-rig"],
-//     "keys": [{ "slot": "tripo", "service": "tripo", "label": "Tripo API key" }] }
+//     "keys": [{ "slot": "tripo", "service": "tripo", "label": "Tripo API key" }],
+//     "billing": [{ "service": "tripo", "unit": "credit", "usdPerUnit": 0.01, ... }] }   (optional, see kit/billing.js)
 // Its nodes stay ordinary node folders next to it. A node belongs to one pack at most.
 // "keys" are the pack's key slots: one key chosen for the whole pack fills that slot in every
 // member (workspace/.kit/pack-keys.json holds the key ids, never a key).
@@ -60,6 +61,7 @@ function checkPack(p, dirName, nodes, takenBy = {}) {
         else if (pk.service !== s.service) problems.push(`"keys": slot "${s.slot}" is ${pk.service} in the pack but ${s.service} in "${id}"`);
       }
     }
+    problems.push(...require('./billing').checkBilling(p.billing, keys.map((k) => k && k.service), 'pack '));
   }
   return problems;
 }
