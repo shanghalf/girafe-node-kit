@@ -72,8 +72,8 @@ In a plugin node's panel:
 
 ## Not yet
 
-AI calls, HTTP with key slots, and network limits come in later host API versions
-(see `CHANGELOG.md`).
+Long-running jobs (a call that waits minutes for a result), several outputs, and files other than
+pictures come in a later host API version (see `CHANGELOG.md`).
 
 ## Branches
 
