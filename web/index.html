@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GIRAFE node kit</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">🦒</span><b>GIRAFE</b><span class="sub">node kit</span></div>
+  <select id="graphSel" title="Your test graphs"></select>
+  <button id="newGraph" title="New graph">＋ New</button>
+  <input id="graphTitle" class="title-input" placeholder="Graph title">
+  <div class="spacer"></div>
+  <button id="runBtn" class="primary">▶ Run</button>
+  <button id="stopBtn" class="danger" hidden>⏹ Stop</button>
+  <button id="fitBtn" title="Show the whole graph">⤢ Fit</button>
+  <span id="runStatus" class="run-status"></span>
+  <span id="versionBadge" class="version" title="The GIRAFE this kit pretends to be"></span>
+</header>
+<div class="body">
+  <aside class="palette">
+    <div class="pal-title">Core nodes</div>
+    <div id="palCore"></div>
+    <div class="pal-title">Your nodes <button id="reloadKinds" class="link" title="Read workspace/nodes again">↻</button></div>
+    <div id="palPlugins"></div>
+    <p class="pal-hint">Plugin nodes live in <code>workspace/nodes/</code>. Changes are picked up on the next run.</p>
+  </aside>
+  <main class="canvas" id="canvas">
+    <div class="world" id="world">
+      <svg class="wires" id="wires"></svg>
+    </div>
+    <div class="canvas-hint" id="canvasHint">Drag from an output dot to another node to wire it. Drag the background to move around, wheel to zoom.</div>
+  </main>
+  <aside class="panel" id="panel"></aside>
+</div>
+<div class="ask-dock" id="askDock" hidden></div>
+<div class="menu" id="menu" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
