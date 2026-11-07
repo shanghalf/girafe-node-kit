@@ -6,7 +6,7 @@ database, files or keys; everything goes through `ctx`.
 
 > **Status: draft.** Host API 2 (GIRAFE 0.69.0) added long runs (`limits`), `ctx.state`,
 > `ctx.files.fromUrl`, `ctx.http` forms, `"*.host"` network entries, the `tripo` key service,
-> `file` fields, nodes with no outputs and `"display": "runs"`.
+> `file` fields, nodes with no outputs, `"display": "runs"` and `"streams"`.
 > Host API 1 added key slots and `ctx.http`. Nodes written for 0 and 1 still run
 > (`SUPPORTED_HOST_APIS` in `kit/version.js`). Additions keep the number; a change
 > that breaks existing nodes bumps it, and GIRAFE keeps the previous number running for a while.
@@ -54,6 +54,7 @@ The folder name is the node's id: lowercase letters, digits and dashes.
 | `inputs` | `min` / `max` input sockets. With `min: 1` the node is skipped when nothing arrives. `max: 0` = a starting node. |
 | `outputs` | Output socket names. `["out"]` for one; `["yes", "no"]` for named exits. Host API 2: `[]` = a node that sends nothing on (it keeps or shows what reaches it); what `run` returns is shown on the node. |
 | `fields` | The panel. Types: `text`, `textarea`, `number`, `select` (with `options`: `["a","b"]` or `[["value","Label"]]`), `checkbox`, and (host API 2) `file` (with optional `accept`, like `".glb,.fbx"`, and `multiple: true`). Optional `default`, `placeholder`. A `file` field's value is a file reference (a list with `multiple`), readable with `ctx.files.read` like a file that arrived on an input. Files: pictures (PNG, JPEG, WebP, GIF, 25 MB) and 3D models (GLB, FBX, OBJ, STL, 150 MB). |
+| `streams` | Host API 2. `true` when one firing may send several packets with `ctx.emit` (one per item). GIRAFE plans a run before it starts, so it must know: without it, the next node gets only the last packet when it also takes a single value. Leave it out for a node that sends one value per firing. |
 | `display` | Host API 2. `"runs"`: the host keeps what the node sent (or, with `"outputs": []`, returned) over its last 10 runs and shows them in its panel, newest first, pictures and 3D models included. In GIRAFE this is the Result stack's view (also on the phone). |
 | `limits` | Host API 2. `{ "seconds": n }`: how long one firing may run, 1 to 3600 (default 60). For a node that waits on a slow service; Stop still ends it at once. |
 | `capabilities` | What the node may do beyond pure computing. Anything not declared is refused. |
@@ -97,7 +98,7 @@ module.exports = {
 | `ctx.settings` | The panel fields, with your defaults filled in. |
 | `ctx.title` | The node's title on the canvas. |
 | `ctx.girafe` | `{ version, hostApi }` of the GIRAFE running you. |
-| `await ctx.emit(port, value)` | Send one packet now. Call it several times and the node becomes a stream: everything after it runs once per packet (like For each). |
+| `await ctx.emit(port, value)` | Send one packet now. Call it several times and the node becomes a stream: everything after it runs once per packet (like For each). Say so with `"streams": true` in the manifest (host API 2). |
 | `await ctx.progress(text)` | A short status line under the node while it runs. |
 | `await ctx.log(...)` | A line in the node's log (panel › Last run › Log). `console.log` also lands there. |
 | `ctx.isFile(v)` | `true` when `v` is a file reference. |

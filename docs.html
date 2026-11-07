@@ -239,12 +239,13 @@ docs.html               this document</code></pre>
 </ol>
 <p>Manifests are checked: a slot's service must be <code>anthropic</code>, <code>openai</code> or <code>gemini</code> and its API host must be listed in <code>network</code>. Nodes written for host API 0 still run (<code>SUPPORTED_HOST_APIS</code>), without <code>ctx.http</code>. The first real plugin using it is <code>workspace/nodes/gemini-image</code> (GIRAFE's Generate image rebuilt as a plugin).</p>
 
-<h3>Host API 2: panel files, nodes with no outputs, kept runs</h3>
+<h3>Host API 2: panel files, nodes with no outputs, kept runs, streams</h3>
 <p>Besides long runs, <code>ctx.state</code>, <code>ctx.files.fromUrl</code> and forms, host API 2 has three things a manifest declares (all checked by <code>checkManifest</code>, refused below host API 2):</p>
 <ul>
   <li><strong><code>"type": "file"</code> fields</strong> (<code>accept</code>, <code>multiple</code>): the panel uploads through <code>POST /api/files</code> (pictures, or 3D models told by the file name) and stores the references in <code>node.settings[key]</code>. The plugin reads them with <code>ctx.files.read</code>, like a file that came on an input.</li>
   <li><strong><code>"outputs": []</code></strong>: no output socket is drawn; <code>ctx.emit</code> is refused; what <code>run</code> returns (a value or a list) is returned by <code>runPlugin</code> as <code>shown</code> and becomes the node's displayed output, going nowhere.</li>
   <li><strong><code>"display": "runs"</code></strong>: after each firing round the engine hands what the node sent or showed to <code>kit/node-runs.js</code>, which keeps the last 10 runs per canvas node (newest first; 60 values, 40 000 characters each; file references only). The panel shows them as Latest and Earlier runs, pictures and 3D model cards included, with <em>Forget these runs</em>. GIRAFE's Result stack is this display.</li>
+  <li><strong><code>"streams": true</code></strong>: one firing may send several packets with <code>ctx.emit</code>. The kit's engine counts what arrives and doesn't need it, but GIRAFE plans a run before it starts (which inputs are streams) and gives a node fed by an undeclared stream only the last packet. <code>checkManifest</code> accepts it (boolean, host API 2, not on a node with no outputs); <code>listPlugins</code> carries it.</li>
 </ul>
 
 <h3 id="page">The page</h3>

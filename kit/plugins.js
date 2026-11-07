@@ -66,6 +66,9 @@ function checkManifest(m, dirName) {
   const outs = m.outputs ?? ['out'];
   if (!Array.isArray(outs) || outs.some((o) => !/^[a-z][a-z0-9_]{0,23}$/.test(o))) problems.push('"outputs": a list of short lowercase names, like ["out"] or ["yes", "no"]');
   else if (!outs.length && !(m.hostApi >= 2)) problems.push('"outputs": [] (a node that sends nothing on) needs "hostApi": 2');
+  if (m.streams !== undefined && typeof m.streams !== 'boolean') problems.push('"streams": true or false');
+  else if (m.streams === true && !(m.hostApi >= 2)) problems.push('"streams" needs "hostApi": 2');
+  else if (m.streams === true && Array.isArray(outs) && !outs.length) problems.push('"streams": a node with no outputs sends nothing');
   if (m.display !== undefined && m.display !== 'runs') problems.push('"display": only "runs" exists');
   else if (m.display === 'runs' && !(m.hostApi >= 2)) problems.push('"display": "runs" needs "hostApi": 2');
   for (const f of m.fields || []) {
@@ -122,6 +125,7 @@ function listPlugins() {
       capabilities: (m && m.capabilities) || {},
       limits: (m && m.limits) || null,
       display: (m && m.display) || null,
+      streams: !!(m && m.streams),
       hostApi: m && m.hostApi,
       girafe: m && m.girafe,
       problems,

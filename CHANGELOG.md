@@ -3,6 +3,12 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.5.4 (2026-11-07)
+
+- Host API 2 (draft) gains `"streams": true`: a node that may send several packets per firing
+  with `ctx.emit` says so in its manifest. GIRAFE plans a run before it starts and needs it to send
+  every packet on; the kit accepts it. Add it to any node of yours that emits more than once.
+
 ## 0.5.3 (2026-11-07)
 
 - The GitHub button, menus and dialogs show GitHub's own mark instead of the octopus emoji.
