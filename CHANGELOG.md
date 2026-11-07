@@ -10,6 +10,12 @@ with what plugin authors need to do.
   (green when something went through, grey dashes when nothing did).
 - The square flow socket on every node (run only when something reaches it).
 - Grab any wired socket to move that wire; drop it on empty canvas to remove it.
+- **Prompt** node (Anthropic, OpenAI or Gemini; pictures on its inputs go to the model) and
+  **Generate image** node (Gemini, text to image or image to image), both like GIRAFE's, with
+  saved answers/pictures so a repeated request costs nothing.
+- Local **key bank** (🔑 Keys): keys saved encrypted on this computer, shown masked only.
+- **Network guard**: a key may only go to its own service, in its login header; every outgoing
+  request of the kit is watched and listed (🔑 Keys > Network); the page is locked to the kit.
 
 ## 0.1.0 · simulates GIRAFE 0.67.3 · host API 0 (draft)
 

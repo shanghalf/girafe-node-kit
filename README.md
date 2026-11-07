@@ -30,6 +30,21 @@ Developers: `node kit.js` does the same with your own Node 22+.
 Working with an AI assistant? Point it at `AI-INSTRUCTIONS.md`; `HOST_API.md` is the full
 contract.
 
+## Keys (Prompt and Generate image)
+
+The **Prompt** node asks Anthropic, OpenAI or Gemini; **Generate image** uses Google Gemini.
+They need your own API key: **🔑 Keys** at the top, paste it, save.
+
+- The key goes once from the page to the kit on your computer, and is saved encrypted in
+  `workspace/.kit/`. The page shows only a masked form afterwards and can't contact anything
+  but the kit (it is locked to it).
+- When a node runs, the key is used for that one call, sent only to its own service's address,
+  in its login header. The kit's network guard refuses anything else before it leaves.
+- **🔑 Keys > Network** lists every request the kit has sent to the internet, which key went
+  where, and anything blocked or sent outside the guard (there should be none).
+- The same request twice gives the saved answer or picture, with no new call and no cost.
+- Nodes you build as plugins never see keys.
+
 ## What's inside
 
 | | |

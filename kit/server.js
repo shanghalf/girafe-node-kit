@@ -8,9 +8,15 @@ const plugins = require('./plugins');
 const core = require('./core-nodes');
 const engine = require('./engine');
 const version = require('./version');
+const keys = require('./keys');
+const textAI = require('./ai/text');
+const gemini = require('./ai/gemini-image');
+const netguard = require('./netguard');
 
 const WEB = path.join(__dirname, '..', 'web');
 const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
+// The page may load and contact only this kit: nothing from or to the internet.
+const CSP = "default-src 'self'; connect-src 'self'; img-src 'self' blob: data:; media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 const runs = new Map(); // runId -> { run, at }
 const MAX_UPLOAD = 25 * 1024 * 1024;
 
@@ -61,6 +67,28 @@ async function handle(req, res) {
     if (req.method === 'DELETE') { store.deleteGraph(k[1]); return send(res, 200, { ok: true }); }
   }
 
+  // Key bank: values go in, only masked forms come out.
+  if (req.method === 'GET' && p === '/api/keys') return send(res, 200, { keys: keys.list(), services: keys.SERVICES });
+  if (req.method === 'POST' && p === '/api/keys') {
+    // The paste step: the key arrives from the page (on this computer) and is saved encrypted.
+    // We count what the kit sent to the internet meanwhile, to show you: it should be nothing.
+    const before = netguard.mark();
+    try {
+      const key = keys.add(await readJson(req));
+      return send(res, 200, { key, during: netguard.since(before) });
+    } catch (e) { return send(res, 400, { error: e.message }); }
+  }
+  if (req.method === 'DELETE' && (k = m(/^\/api\/keys\/(k-[0-9a-f]{10})$/))) { keys.remove(k[1]); return send(res, 200, { ok: true }); }
+  if (req.method === 'GET' && p === '/api/network') return send(res, 200, netguard.report());
+  if (req.method === 'POST' && p === '/api/models') {
+    const { keyId, kind } = await readJson(req);
+    try {
+      const key = keys.use(keyId);
+      if (kind === 'image' && key.service === 'gemini') return send(res, 200, { models: gemini.IMAGE_MODELS });
+      return send(res, 200, { models: await textAI.listModels({ service: key.service, key: key.value, keyLabel: key.label, kind }) });
+    } catch (e) { return send(res, 400, { error: e.message }); }
+  }
+
   if (req.method === 'POST' && p === '/api/files') {
     const mime = String(req.headers['content-type'] || '').split(';')[0];
     if (!/^image\/(png|jpeg|webp|gif)$/.test(mime)) return send(res, 400, { error: 'PNG, JPEG, WebP or GIF only' });
@@ -98,7 +126,7 @@ async function handle(req, res) {
     const rel = p === '/' ? 'index.html' : p.slice(1);
     const fp = path.join(WEB, path.normalize(rel));
     if (!fp.startsWith(WEB + path.sep) || !fs.existsSync(fp) || !fs.statSync(fp).isFile()) return send(res, 404, { error: 'not found' });
-    return send(res, 200, fs.readFileSync(fp), { 'Content-Type': STATIC[path.extname(fp)] || 'application/octet-stream' });
+    return send(res, 200, fs.readFileSync(fp), { 'Content-Type': STATIC[path.extname(fp)] || 'application/octet-stream', 'Content-Security-Policy': CSP, 'Referrer-Policy': 'no-referrer' });
   }
   return send(res, 404, { error: 'not found' });
 }

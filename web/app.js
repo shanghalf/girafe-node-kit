@@ -211,6 +211,8 @@ function summaryOf(n, k) {
     case 'forEach': return 'Streams its wired-in list one item at a time.';
     case 'collect': return 'Waits for its input to finish, then emits everything as one list.';
     case 'ask': return n.prompt ? `✋ ${truncate(n.prompt)}` : '(write the question to ask)';
+    case 'prompt': return !n.keyId ? '(no API key selected)' : n.prompt ? truncate(n.prompt) : '(no prompt yet)';
+    case 'img': return !n.keyId ? '(no Gemini key selected)' : n.prompt ? `🎨 ${truncate(n.prompt)}` : 'ready to generate (describe it, or wire in text / pictures)';
     default:
       if (k.missing) return '⚠️ unknown node type (plugin removed?)';
       if (k.problems?.length) return `⚠️ ${k.problems[0]}`;
@@ -496,7 +498,7 @@ function renderPanel() {
     const isPlugin = n.type.startsWith('plugin:');
     const get = () => (isPlugin ? n.settings?.[f.key] : n[f.key]);
     const set = (v) => { if (isPlugin) { n.settings = { ...(n.settings || {}), [f.key]: v }; } else n[f.key] = v; changed({ undoable: false, panel: false }); };
-    kids.push(f.type === 'image' ? imageField(n) : field(f, get() ?? (f.default ?? ''), set));
+    kids.push(f.type === 'image' ? imageField(n) : f.type === 'key' ? keyField(f, get(), set) : f.type === 'model' ? modelField(f, n, get(), set) : field(f, get() ?? (f.default ?? ''), set));
   }
   {
     const ins = dataWiresInto(n.id), flows = flowWiresInto(n.id);
@@ -523,6 +525,100 @@ function field(f, value, onInput) {
   input.value = value ?? '';
   input.addEventListener('input', () => onInput(f.type === 'number' ? (input.value === '' ? '' : Number(input.value)) : input.value));
   return el('div', { class: 'field' }, el('label', { text: f.label || f.key }), input);
+}
+// ---------- key bank ----------
+S.keys = []; S.services = {};
+async function loadKeys() { const d = await api('/api/keys'); S.keys = d.keys; S.services = d.services; }
+function keyField(f, value, onSet) {
+  const usable = S.keys.filter((k) => !f.services || f.services.includes(k.service));
+  const sel = el('select', {}, el('option', { value: '', text: usable.length ? '- choose a key -' : '- no key yet -' }),
+    ...usable.map((k) => el('option', { value: k.id, text: `${k.label} · ${k.masked}` })));
+  sel.value = value || '';
+  sel.addEventListener('change', () => { onSet(sel.value); renderPanel(); render({ panel: false }); });
+  const names = (f.services || []).map((s) => S.services[s]?.label || s).join(', ');
+  return el('div', { class: 'field' }, el('label', { text: f.label }), sel,
+    el('div', { class: 'muted', style: { marginTop: '4px' } }, usable.length ? '' : `Add a ${names} key first. `, el('button', { class: 'link', text: '🔑 Manage keys…', onclick: () => openKeys() })));
+}
+function modelField(f, n, value, onSet) {
+  const listId = 'models-' + n.id;
+  const input = el('input', { type: 'text', placeholder: f.placeholder || '', list: listId });
+  input.value = value || '';
+  input.addEventListener('input', () => onSet(input.value.trim()));
+  const dl = el('datalist', { id: listId });
+  const note = el('div', { class: 'muted' });
+  const btn = el('button', { class: 'link', text: 'List the models this key can use', onclick: async () => {
+    if (!n.keyId) return (note.textContent = 'Choose a key first.');
+    note.textContent = 'Asking…';
+    try {
+      const { models } = await api('/api/models', { method: 'POST', body: JSON.stringify({ keyId: n.keyId, kind: f.kind || 'text' }) });
+      dl.replaceChildren(...models.map((m) => el('option', { value: m.id, text: m.label })));
+      note.textContent = `${models.length} models: click the field to pick one.`;
+      input.focus();
+    } catch (e) { note.textContent = e.message; }
+  } });
+  return el('div', { class: 'field' }, el('label', { text: f.label }), input, dl, el('div', { class: 'row', style: { marginTop: '4px', alignItems: 'center' } }, btn), note);
+}
+function openKeys() {
+  const ov = $('#keysDialog');
+  const draw = () => {
+    const label = el('input', { placeholder: 'Name, e.g. "My Gemini key"' });
+    const service = el('select', {}, ...Object.entries(S.services).map(([id, s]) => el('option', { value: id, text: s.label })));
+    const value = el('input', { type: 'password', placeholder: 'Paste the key', autocomplete: 'off' });
+    value.addEventListener('input', () => { const v = value.value.trim(); service.value = /^sk-ant-/.test(v) ? 'anthropic' : /^AIza/.test(v) ? 'gemini' : /^sk-/.test(v) ? 'openai' : service.value; });
+    const err = el('div', { class: 'problems' });
+    const add = async () => {
+      const v = value.value;
+      value.value = ''; // the page doesn't keep the key: it goes once to the kit, on this computer
+      try {
+        const r = await api('/api/keys', { method: 'POST', body: JSON.stringify({ label: label.value, service: service.value, value: v }) });
+        await loadKeys();
+        S.lastPaste = { label: r.key.label, during: r.during, fingerprint: r.key.fingerprint };
+        draw(); renderPanel();
+      } catch (e) { err.textContent = e.message; value.value = v; }
+    };
+    ov.replaceChildren(el('div', { class: 'dialog dialog-wide' },
+      el('div', { class: 'dialog-hd' }, el('h3', { text: '🔑 Key bank' }), el('button', { class: 'link', text: '✕', title: 'Close', onclick: () => { ov.hidden = true; S.lastPaste = null; } })),
+      el('p', { class: 'desc', text: 'Keys for the nodes that call an outside service (Prompt, Generate image). They stay on this computer, encrypted, in workspace/.kit/. Nodes you build as plugins never see them.' }),
+      S.keys.length ? el('div', { class: 'box' }, ...S.keys.map((k) => el('div', { class: 'key-row' },
+        el('div', {}, el('b', { text: k.label }), el('div', { class: 'muted', text: `${S.services[k.service]?.label || k.service} · ${k.masked}` })),
+        el('button', { class: 'danger', text: 'Delete', onclick: async () => { if (!confirm(`Delete the key "${k.label}"?`)) return; await api('/api/keys/' + k.id, { method: 'DELETE' }); await loadKeys(); draw(); renderPanel(); } })))) : el('div', { class: 'muted', text: 'No keys yet.' }),
+      el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Add a key' }),
+        el('div', { class: 'field' }, el('label', { text: 'Key' }), value),
+        el('div', { class: 'field' }, el('label', { text: 'Service' }), service),
+        el('div', { class: 'field' }, el('label', { text: 'Name' }), label),
+        err, el('button', { class: 'primary', text: 'Save the key', onclick: add })),
+      S.lastPaste ? pasteReport(S.lastPaste) : null,
+      networkBox(),
+      el('div', { class: 'muted' }, 'Where to get one: ', ...Object.values(S.services).filter((x) => x.get).flatMap((x, i) => [i ? ' · ' : '', el('a', { href: x.get, target: '_blank', rel: 'noopener', text: x.label })]))));
+    ov.hidden = false;
+    value.focus();
+  };
+  draw();
+}
+function pasteReport(p) {
+  const clean = p.during.internet === 0 && p.during.unexpected === 0;
+  return el('div', { class: 'box ' + (clean ? 'ok-box' : 'warn-box') },
+    el('div', { class: 'box-title', text: clean ? '🛡 Key saved, nothing left this computer' : '⚠️ Check the network log' }),
+    el('div', { class: 'caps', text: clean
+      ? `"${p.label}" went from this page to the kit on your computer, and was saved encrypted. While saving it, the kit made no internet request. The page can't contact anything else: it is locked to the kit. Fingerprint ${p.fingerprint} (not the key).`
+      : `While saving "${p.label}", the kit's process made ${p.during.internet} internet request(s), ${p.during.unexpected} of them not through its guard. See the log below.` }));
+}
+function networkBox() {
+  const box = el('div', { class: 'box' }, el('div', { class: 'box-title', text: '🛡 Network: where your keys go' }), el('div', { class: 'muted', text: 'Loading…' }));
+  api('/api/network').then((r) => {
+    const s = r.stats;
+    const ok = s.blocked === 0 && s.unexpected === 0;
+    const rows = r.log.slice(0, 25).map((e) => el('div', { class: 'net-row ' + (e.result === 'blocked' || e.result === 'unexpected' ? 'bad' : '') },
+      el('span', { class: 'net-time', text: e.at.slice(11, 19) }),
+      el('span', { class: 'net-what', text: `${e.purpose || '?'}${e.key ? ' · key "' + e.key + '"' : ''}` }),
+      el('span', { class: 'net-host', text: e.host }),
+      el('span', { class: 'net-res', text: e.result + (e.detail ? ': ' + e.detail : '') })));
+    box.replaceChildren(el('div', { class: 'box-title', text: '🛡 Network: where your keys go' }),
+      el('div', { class: 'caps', text: `${ok ? '✓' : '⚠️'} Since the kit started: ${s.requests} request(s) to the internet, ${s.withKey} with a key, each to its own service only. Blocked: ${s.blocked}. Not through the guard: ${s.unexpected}.` }),
+      el('div', { class: 'caps', text: 'Allowed addresses: ' + Object.entries(r.hosts).map(([k, h]) => `${S.services[k]?.label || k} → ${h.join(', ')}`).join(' · ') }),
+      rows.length ? el('div', { class: 'net-log' }, ...rows) : el('div', { class: 'muted', text: 'No internet request yet.' }));
+  }).catch((e) => box.append(el('div', { class: 'problems', text: e.message })));
+  return box;
 }
 function imageField(n) {
   const pick = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', hidden: true });
@@ -648,6 +744,8 @@ async function deleteGraph() {
   $('#runBtn').addEventListener('click', runGraph);
   $('#stopBtn').addEventListener('click', () => api(`/api/runs/${S.runId}/stop`, { method: 'POST' }).then(poll));
   $('#fitBtn').addEventListener('click', fit);
+  $('#keysBtn').addEventListener('click', openKeys);
+  await loadKeys();
   $('#reloadKinds').addEventListener('click', () => loadKinds().then(render));
   window.addEventListener('focus', () => loadKinds().then(render));
   const { graphs } = await api('/api/graphs');

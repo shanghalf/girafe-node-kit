@@ -10,6 +10,9 @@ This repo is the GIRAFE node kit: a local simulator for building GIRAFE plugin n
   - core nodes must behave like GIRAFE's real ones (see the engine rules at the top of `kit/engine.js`);
   - a change to what plugins can do = a change to `HOST_API.md`, and to `kit/version.js` + `CHANGELOG.md` when it breaks existing nodes;
   - run `npm test` and check the page in a browser before calling it done.
+- Keys (`kit/keys.js`): a key is in plain text only when pasted and in memory for one call to its own service. Never decrypt to list or show; never log a key; never pass one to a plugin.
+- Every request the kit sends to the internet goes through `netguard.send()` (`kit/netguard.js`), never a bare `fetch`. A new service = its official hosts and login header in `OFFICIAL` / `AUTH_HEADER`.
+- The page keeps its Content-Security-Policy (`kit/server.js` `CSP`): it loads and contacts only the kit. No CDN, no outside script or font.
 - `kit/version.js` holds the simulated GIRAFE version and the host API number. When GIRAFE moves on, update them and note it in `CHANGELOG.md`.
 
 ## Branches and releases
