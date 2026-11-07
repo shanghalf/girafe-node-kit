@@ -4,7 +4,7 @@ The contract between GIRAFE and a plugin node. The kit implements the same contr
 as GIRAFE, so a node that works here works there. The plugin never touches GIRAFE's
 database, files or keys; everything goes through `ctx`.
 
-> **Status: draft.** Host API 2 (GIRAFE 0.69.0) added long runs (`limits`), `ctx.state`,
+> **Status: live in GIRAFE 0.69.0.** Host API 2 added long runs (`limits`), `ctx.state`,
 > `ctx.files.fromUrl`, `ctx.http` forms, `"*.host"` network entries, the `tripo` key service,
 > `file` fields, nodes with no outputs, `"display": "runs"` and `"streams"`.
 > Host API 1 added key slots and `ctx.http`. Nodes written for 0 and 1 still run

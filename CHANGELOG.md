@@ -3,6 +3,10 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.5.5 (2026-11-07)
+
+- Host API 2 is live: GIRAFE 0.69.0 runs it, so nodes written for it can be sent.
+
 ## 0.5.4 (2026-11-07)
 
 - Host API 2 (draft) gains `"streams": true`: a node that may send several packets per firing
