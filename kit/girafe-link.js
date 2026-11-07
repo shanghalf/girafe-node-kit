@@ -106,6 +106,8 @@ async function disconnect() {
 async function send(id) {
   const s = read();
   if (!s?.keyId) throw Object.assign(new Error('Connect to GIRAFE first.'), { needsLink: true });
+  const packId = require('./packs').membership()[id];
+  if (packId) throw Object.assign(new Error(`"${id}" is part of the pack "${packId}": send the pack (it goes to GIRAFE as one).`), { code: 'in-pack', pack: packId });
   const packed = pkgs.pack(id);
   // Said before anything leaves: a kit GIRAFE refuses, or a node it can't run.
   const why = await compat.beforeSend(packed.manifest);
@@ -120,4 +122,21 @@ async function send(id) {
   }
 }
 
-module.exports = { status, connect, disconnect, send, base };
+// Send a whole pack: its nodes are installed together, under the pack's title, with one set of keys.
+async function sendPack(packId) {
+  const s = read();
+  if (!s?.keyId) throw Object.assign(new Error('Connect to GIRAFE first.'), { needsLink: true });
+  const packed = pkgs.packPack(packId);
+  const why = await compat.beforeSendPack(packed.manifests);
+  if (why) throw Object.assign(new Error(why.text), { code: why.code });
+  const t = keys.use(s.keyId, 'girafe');
+  try {
+    const r = await post('/api/kit/packs', packed.pkg, { token: t.value, purpose: `Send the pack "${packed.pack.name}" ${packed.version} to my GIRAFE` });
+    return { ...r, version: packed.version, hash: packed.hash, size: packed.size };
+  } catch (e) {
+    if (e.status === 401) { keys.remove(s.keyId); try { fs.unlinkSync(FILE); } catch {} throw Object.assign(new Error('GIRAFE no longer accepts this computer\'s link (revoked or expired). Connect again.'), { needsLink: true }); }
+    throw e;
+  }
+}
+
+module.exports = { status, connect, disconnect, send, sendPack, base };

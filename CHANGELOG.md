@@ -3,6 +3,14 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.6.0 (2026-11-07)
+
+- **Packs**: nodes made for one use go in a pack (a folder with only `pack.json`, see HOST_API.md).
+  The palette shows them under the pack's title, the pack has one key for all its nodes, and it is
+  packed (`.gpack`) and sent to GIRAFE as one. A node in a pack can't be sent alone. Needs GIRAFE
+  0.70.0. Nothing changes for nodes that are not in a pack.
+- The kit simulates GIRAFE 0.70.0.
+
 ## 0.5.5 (2026-11-07)
 
 - Host API 2 is live: GIRAFE 0.69.0 runs it, so nodes written for it can be sent.

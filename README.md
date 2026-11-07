@@ -61,6 +61,10 @@ In a plugin node's panel:
   only you see it. The first time, **Connect to GIRAFE** opens girafe.live: log in (or create an
   account) there and click Allow. The kit never sees your password, and works fine unconnected.
 
+Nodes made to work together (a 3D chain, say) can form a **pack**: a folder with a `pack.json`
+listing them (see HOST_API.md). They show under the pack's title, share one key, and are sent to
+GIRAFE together with **☁️ Send the pack**.
+
 ## Updates
 
 The kit and GIRAFE check each other's version. When they don't match, a button at the top says

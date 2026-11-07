@@ -76,7 +76,7 @@
 
 <h1>GIRAFE node kit</h1>
 <p class="lead">Technical documentation: how the kit is built, how it runs a graph, how plugin nodes are isolated, and how API keys are handled.</p>
-<p class="meta">Last updated 2026-11-07. Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
+<p class="meta">Last updated 2026-11-07 (packs). Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
 
 <h2 id="overview">1. Overview</h2>
 <p>The kit is a small, local copy of GIRAFE's Promptmixer canvas, used to build <strong>plugin nodes</strong>: nodes written by anyone, run in a sandbox, that talk to GIRAFE only through a fixed contract (the <em>host API</em>). It runs entirely on the user's computer: a Node.js server on <code>127.0.0.1</code> and a web page served by it.</p>
@@ -349,6 +349,16 @@ Referrer-Policy: no-referrer</code></pre>
   <li>The author key pair is made on the first pack: <code>workspace/.kit/author-ed25519.pem</code> (mode 600). Only the public key ever goes in a package.</li>
   <li><code>verify(pkg)</code> is what GIRAFE runs on upload: every file against its checksum, the hash against the file list, the signature against the author key, file names (no <code>..</code>, no absolute paths), the manifest (same checks as the kit), id and version agreeing with the manifest. GIRAFE remembers the author key of each node in an account: a later version signed by another key is refused.</li>
 </ul>
+
+<h3 id="packs">Packs: the .gpack file</h3>
+<p><code>kit/packs.js</code>. A pack is a folder in <code>workspace/nodes/</code> with only a <code>pack.json</code> (rules in <code>HOST_API.md</code>, <em>Packs</em>): an id, a title, a version, its nodes and the key slots they share. <code>listPlugins</code> skips pack folders and gives each member a <code>pack</code> field; the palette shows members under the pack's title (right-click the title for GitHub). The pack's key choice is stored by id only in <code>workspace/.kit/pack-keys.json</code> (<code>{ packId: { slot: keyId } }</code>); the engine runs a member with <code>packs.keySlotsFor(id)</code>, the pack's keys, never the node's own. Routes: <code>GET /api/packs</code>, <code>POST /api/packs/:id/keys { slot, keyId }</code>, <code>POST /api/pack { pack }</code>, <code>POST /api/girafe/send-pack { id }</code>.</p>
+<pre><code>{ "format": "girafe-pack-package", "formatVersion": 1, "id", "version", "pack" (pack.json),
+  "packFile": { "sha256", "size", "data" },
+  "nodes": [ a full .gnode package for each node, in pack.json order ],
+  "hash":   sha256 of the sorted lines "pack.json &lt;sha256&gt;\n" and "node:&lt;id&gt; &lt;node hash&gt;\n",
+  "author": { "publicKey" }, "signature": Ed25519 over "hash" (the same key signs every node),
+  "packedAt", "kit" }</code></pre>
+<p><code>verifyPack</code> checks every node package as above, that they are all by the pack's author and match <code>pack.json</code>, the pack rules, the hash and the signature. Sending a member alone is refused (<code>code: "in-pack"</code>). Before a pack leaves, the kit checks GIRAFE says <code>packs: 1</code> in its compat answer (GIRAFE 0.70.0) and that it can run every node; GIRAFE takes it at <code>POST /api/kit/packs</code>.</p>
 
 <h3 id="link">Connect to GIRAFE</h3>
 <p><code>kit/girafe-link.js</code>: the OAuth 2.0 <em>device authorization</em> pattern (as GitHub's command line, or signing in on a TV).</p>

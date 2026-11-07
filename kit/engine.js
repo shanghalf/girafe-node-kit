@@ -106,7 +106,7 @@ function createRun(graph, { onChange } = {}) {
             if (kind.core) await kind.core.run({ n, ins, emit, ask, signal: ctrl.signal, st, index: i });
             else {
               const r = await plugins.runPlugin(kind.plugin, {
-                inputs: ins, keySlots: n.keySlots, nodeId: n.id,
+                inputs: ins, keySlots: require('./packs').keySlotsFor(kind.plugin.id, n.keySlots), nodeId: n.id,
                 settings: { ...Object.fromEntries((kind.plugin.fields || []).filter((f) => f.default !== undefined).map((f) => [f.key, f.default])), ...(n.settings || {}) }, title: n.title || kind.plugin.name, signal: ctrl.signal,
                 onProgress: (t) => { st.note = t; changed(); },
               });

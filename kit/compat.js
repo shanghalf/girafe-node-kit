@@ -76,7 +76,7 @@ async function girafe({ force = false } = {}) {
     if (r.status === 404) return (save({ girafe: { base, at: Date.now(), old: true } }), readFile().girafe);
     const d = r.data;
     if (!r.ok || !d || !isVer(d.girafeVersion) || !Array.isArray(d.hostApis) || !isVer(d.minKit)) throw new Error(`GIRAFE answered HTTP ${r.status}`);
-    const info = { base, at: Date.now(), girafeVersion: d.girafeVersion, hostApi: Number(d.hostApi), hostApis: d.hostApis.map(Number).filter(Number.isInteger), minKit: d.minKit, keyServices: Array.isArray(d.keyServices) ? d.keyServices.map(String) : null, kit: d.kit && typeof d.kit === 'object' ? { repo: String(d.kit.repo || ''), branch: String(d.kit.branch || '') } : null };
+    const info = { base, at: Date.now(), girafeVersion: d.girafeVersion, hostApi: Number(d.hostApi), hostApis: d.hostApis.map(Number).filter(Number.isInteger), minKit: d.minKit, keyServices: Array.isArray(d.keyServices) ? d.keyServices.map(String) : null, packs: Number(d.packs) || 0, kit: d.kit && typeof d.kit === 'object' ? { repo: String(d.kit.repo || ''), branch: String(d.kit.branch || '') } : null };
     save({ girafe: info });
     return info;
   } catch (e) {
@@ -187,9 +187,20 @@ async function beforeSend(manifest) {
   return checkNode(manifest, known);
 }
 
-// After GIRAFE refused with 426/409, keep its answer so the page shows it at once.
-function remember(compat) {
-  if (compat && isVer(compat.girafeVersion)) save({ girafe: { base: girafeBase(), at: Date.now(), girafeVersion: compat.girafeVersion, hostApi: Number(compat.hostApi), hostApis: (compat.hostApis || []).map(Number), minKit: compat.minKit, keyServices: compat.keyServices || null, kit: compat.kit || null } });
+// A pack: GIRAFE must know packs, and every node in it must pass.
+async function beforeSendPack(manifests) {
+  const g = await girafe({ force: true });
+  const known = g.hostApis ? g : null;
+  if (!known) return null;
+  if (cmp(version.KIT_VERSION, known.minKit) < 0) return { code: 'kit-outdated', text: `GIRAFE ${known.girafeVersion} needs kit ${known.minKit} or newer; this is kit ${version.KIT_VERSION}. Click "Update the kit" first.` };
+  if (!known.packs) return { code: 'no-packs', text: `GIRAFE ${known.girafeVersion} doesn't take packs yet (GIRAFE 0.70.0 or newer does).` };
+  for (const m of manifests) { const why = checkNode(m, known); if (why) return { ...why, text: `"${m.id}": ${why.text}` }; }
+  return null;
 }
 
-module.exports = { status, girafe, latest, checkNode, beforeSend, remember, updateSource, cmp, nodeOk, isVer, _reset: () => { mem = null; } };
+// After GIRAFE refused with 426/409, keep its answer so the page shows it at once.
+function remember(compat) {
+  if (compat && isVer(compat.girafeVersion)) save({ girafe: { base: girafeBase(), at: Date.now(), girafeVersion: compat.girafeVersion, hostApi: Number(compat.hostApi), hostApis: (compat.hostApis || []).map(Number), minKit: compat.minKit, keyServices: compat.keyServices || null, packs: Number(compat.packs) || 0, kit: compat.kit || null } });
+}
+
+module.exports = { status, girafe, latest, checkNode, beforeSend, beforeSendPack, remember, updateSource, cmp, nodeOk, isVer, _reset: () => { mem = null; } };

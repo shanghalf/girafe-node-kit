@@ -103,8 +103,11 @@ function checkManifest(m, dirName) {
 
 function listPlugins() {
   const out = [];
+  const packs = require('./packs');
+  const member = packs.membership();
   for (const dir of fs.readdirSync(store.NODES, { withFileTypes: true })) {
     if (!dir.isDirectory()) continue;
+    if (packs.isPackDir(dir.name)) continue; // a pack folder holds only pack.json
     const base = path.join(store.NODES, dir.name);
     let m = null, problems = [];
     try { m = JSON.parse(fs.readFileSync(path.join(base, 'manifest.json'), 'utf8')); }
@@ -128,6 +131,8 @@ function listPlugins() {
       streams: !!(m && m.streams),
       hostApi: m && m.hostApi,
       girafe: m && m.girafe,
+      category: (m && m.category) || null,
+      pack: member[dir.name] || null,
       problems,
     });
   }
@@ -249,7 +254,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
           const decl = (plugin.capabilities.keys || []).find((k) => k.slot === slot);
           if (!decl) throw new Error(`ctx.http: no key slot "${slot}" in the manifest`);
           const keyId = keySlots && keySlots[slot];
-          if (!keyId) throw new Error(`Choose a key for "${decl.label || slot}" in the node's panel.`);
+          if (!keyId) throw new Error(`Choose a key for "${decl.label || slot}" in the node's panel (for a node in a pack: the pack's key, one for all its nodes).`);
           const k = keys.use(keyId, decl.service);
           h[netguard.AUTH_HEADER[decl.service]] = BEARER.has(decl.service) ? `Bearer ${k.value}` : k.value;
           guard = { service: decl.service, key: k.value, keyLabel: k.label, purpose: `plugin ${plugin.id} · slot ${slot}` };

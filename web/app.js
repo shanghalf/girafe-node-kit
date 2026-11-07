@@ -41,6 +41,7 @@ async function loadKinds() {
   const { core, plugins } = await api('/api/kinds');
   S.coreList = core; S.pluginList = plugins;
   S.kinds = new Map([...core, ...plugins].map((k) => [k.type, k]));
+  try { S.packs = (await api('/api/packs')).packs; } catch { S.packs = []; }
   renderPalette();
 }
 const kindOf = (n) => S.kinds.get(n.type) || { name: n.type, color: '#666', icon: '?', outputs: ['out'], inputs: { min: 0, max: 8 }, fields: [], missing: true, description: 'This node type is not available (a plugin removed or renamed?).' };
@@ -57,7 +58,14 @@ function renderPalette() {
     b.addEventListener('contextmenu', (ev) => { ev.preventDefault(); showMenu(ev.clientX, ev.clientY, ghMenuItems(k.id, k.name), k.name); });
     return b;
   };
-  $('#palPlugins').replaceChildren(...(S.pluginList.length ? S.pluginList.map(mkPlugin) : [el('div', { class: 'muted', text: 'None yet.' })]), ...ghRemoteOnly(), ...[ghInvite()].filter(Boolean));
+  // A pack's nodes sit together under the pack's title (they go to GIRAFE as one).
+  const loose = S.pluginList.filter((k) => !k.pack || !packOf(k.pack));
+  const groups = (S.packs || []).map((pk) => el('div', { class: 'pal-pack' + (pk.problems.length ? ' bad' : ''), title: pk.problems.length ? pk.problems.join('\n') : pk.description },
+    el('div', { class: 'pal-pack-hd', oncontextmenu: (ev) => { ev.preventDefault(); showMenu(ev.clientX, ev.clientY, ghMenuItems(pk.id, pk.name), pk.name); } },
+      el('span', { text: '📦 ' + pk.name }), el('span', { class: 'muted', text: ' ' + (pk.version || '') }), pk.problems.length ? el('span', { class: 'badge', text: '⚠' }) : null,
+      ghNode(pk.id) ? el('span', { class: 'gh-mark', title: GH_STATE[ghNode(pk.id).state]?.tip || '', text: GH_STATE[ghNode(pk.id).state]?.mark || '' }) : null),
+    ...S.pluginList.filter((k) => k.pack === pk.id).map(mkPlugin)));
+  $('#palPlugins').replaceChildren(...groups, ...(loose.length ? loose.map(mkPlugin) : groups.length ? [] : [el('div', { class: 'muted', text: 'None yet.' })]), ...ghRemoteOnly(), ...[ghInvite()].filter(Boolean));
 }
 
 // ---------- graphs ----------
@@ -510,7 +518,15 @@ function renderPanel() {
   ];
   if (k.problems?.length) kids.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Can\'t run' }), el('ul', { class: 'problems' }, ...k.problems.map((x) => el('li', { text: x })))));
   // A plugin's key slots: you pick which of your keys fills each one; the plugin never sees it.
-  for (const slot of (!k.core && k.capabilities?.keys) || []) {
+  // A node in a pack uses the pack's keys: one key for the whole pack.
+  const pk = !k.core && k.pack && packOf(k.pack);
+  if (pk) {
+    for (const slot of pk.keys) {
+      kids.push(keyField({ label: `${slot.label || slot.slot} - for the whole pack "${pk.name}"`, services: [slot.service] }, pk.keySlots?.[slot.slot],
+        async (v) => { try { pk.keySlots = (await api(`/api/packs/${pk.id}/keys`, { method: 'POST', body: JSON.stringify({ slot: slot.slot, keyId: v || null }) })).keySlots; } catch (e) { alert(e.message); } }));
+    }
+  }
+  for (const slot of (!pk && !k.core && k.capabilities?.keys) || []) {
     kids.push(keyField({ label: `${slot.label || slot.slot} (key slot "${slot.slot}")`, services: [slot.service] }, n.keySlots?.[slot.slot],
       (v) => { n.keySlots = { ...(n.keySlots || {}), [slot.slot]: v }; changed({ undoable: false, panel: false }); }));
   }
@@ -566,7 +582,10 @@ async function loadLink() {
   if (!(document.activeElement?.matches('input, textarea, select') && $('#panel').contains(document.activeElement))) renderPanel();
 }
 S.packMsg = {};
+const packOf = (id) => (S.packs || []).find((p) => p.id === id) || null;
 function packBox(k) {
+  const pk = k.pack && packOf(k.pack);
+  if (pk) return packSendBox(pk);
   const out = el('div', { class: 'muted', 'data-pack': k.id });
   // The panel may be redrawn while a send is under way: write into whichever copy is on screen.
   const paint = (node, m) => node.replaceChildren(m.t, ...(m.link ? [el('a', { href: m.link.url, download: m.link.name, text: 'download' })] : []));
@@ -592,6 +611,35 @@ function packBox(k) {
       el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send to my GIRAFE' : '☁️ Connect and send to my GIRAFE', onclick: sendIt })),
     el('div', { class: 'caps', text: `Version ${k.version}. GIRAFE accepts each version once: raise "version" in manifest.json before sending a change.` }),
     S.compat?.girafe?.hostApis && !S.compat.girafe.hostApis.includes(k.hostApi) ? el('div', { class: 'v-prob warn', text: `Written for host API ${k.hostApi}; GIRAFE ${S.compat.girafe.version} runs host API ${S.compat.girafe.hostApis.join(' and ')}. It can't be sent until they match.` }) : null, out);
+}
+// A pack is packed and sent as one: its nodes arrive together in GIRAFE, under its title.
+function packSendBox(pk) {
+  const key = 'pack:' + pk.id;
+  const out = el('div', { class: 'muted', 'data-pack': key });
+  const paint = (node, m) => node.replaceChildren(m.t, ...(m.link ? [el('a', { href: m.link.url, download: m.link.name, text: 'download' })] : []));
+  const say = (t, link) => { S.packMsg[key] = { t, link }; for (const n of document.querySelectorAll(`[data-pack="${key}"]`)) paint(n, S.packMsg[key]); paint(out, S.packMsg[key]); };
+  if (S.packMsg[key]) paint(out, S.packMsg[key]);
+  const pack = async () => {
+    say('Packing…');
+    try { const r = await api('/api/pack', { method: 'POST', body: JSON.stringify({ pack: pk.id }) }); say(`✓ ${r.name} · ${(r.size / 1024).toFixed(1)} KB · signed · `, r); }
+    catch (e) { say('⚠️ ' + e.message); }
+  };
+  const sendIt = async () => {
+    if (!S.link?.connected) return openLink(() => sendIt());
+    say(`Sending the pack ${pk.name} ${pk.version} to your GIRAFE…`);
+    try { const r = await api('/api/girafe/send-pack', { method: 'POST', body: JSON.stringify({ id: pk.id }) }); say(`✓ ${r.message || `${pk.name} ${r.version} is in your GIRAFE account.`}`); }
+    catch (e) {
+      say('⚠️ ' + e.message); if (/Connect/.test(e.message)) loadLink();
+      if (e.code) loadCompat();
+      if (e.code === 'kit-outdated') for (const n of document.querySelectorAll(`[data-pack="${key}"]`)) n.append(' ', el('button', { class: 'primary', text: '⬆ Update the kit', onclick: () => openVersions() }));
+    }
+  };
+  return el('div', { class: 'box' }, el('div', { class: 'box-title', text: `Part of the pack "${pk.name}"` }),
+    el('div', { class: 'caps', text: `${pk.nodes.length} nodes: ${pk.nodes.join(', ')}. They go to GIRAFE together, as one pack with one set of keys (workspace/nodes/${pk.id}/pack.json).` }),
+    pk.problems.length ? el('ul', { class: 'problems' }, ...pk.problems.map((x) => el('li', { text: x }))) : null,
+    el('div', { class: 'row' }, el('button', { text: '📦 Pack', title: 'Make a signed .gpack file of the whole pack', onclick: pack }),
+      el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send the pack to my GIRAFE' : '☁️ Connect and send the pack', onclick: sendIt })),
+    el('div', { class: 'caps', text: `Pack version ${pk.version}. GIRAFE accepts each pack version once: raise "version" in pack.json (and in the manifests of the nodes you changed) before sending again.` }), out);
 }
 function openLink(after) {
   const ov = $('#keysDialog');

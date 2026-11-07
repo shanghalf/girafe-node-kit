@@ -21,6 +21,30 @@ workspace/nodes/my-node/
 
 The folder name is the node's id: lowercase letters, digits and dashes.
 
+### Packs (nodes made for one use)
+
+Nodes made to work together for one kind of job (the Tripo 3D chain, say) go in a **pack**: a
+folder next to them holding only `pack.json`.
+
+```
+workspace/nodes/tripo-pack/pack.json
+{ "id": "tripo-pack", "name": "3D (Tripo)", "version": "0.1.0", "description": "Text or a picture to an animated 3D model.",
+  "nodes": ["tripo-3d", "tripo-rig", "tripo-animate"],
+  "keys": [{ "slot": "tripo", "service": "tripo", "label": "Tripo API key" }] }
+```
+
+- `id` = the folder name; `name` (40 characters at most) is the title the nodes are shown under;
+  `version` is the pack's own, raised for every send.
+- `nodes`: 1 to 32 node ids, each an ordinary node folder; a node is in one pack at most.
+- `keys`: the pack's key slots. Every key slot a member declares must be listed here, with the
+  same service. The user picks **one key for the whole pack** and every member runs with it (a
+  member's own key choice is not used).
+- A pack is packed and sent as one (`<id>-<version>.gpack`); its nodes can't be sent alone.
+  GIRAFE installs it all at once, keeps its versions together (a rollback moves every node back),
+  turns it on and off as one, and shows its nodes under its name. A member whose version didn't
+  change is kept as it is; a changed member needs a higher version too.
+- Needs GIRAFE 0.70.0 or newer.
+
 ## manifest.json
 
 ```json

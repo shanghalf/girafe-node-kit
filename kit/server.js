@@ -14,6 +14,7 @@ const gemini = require('./ai/gemini-image');
 const netguard = require('./netguard');
 const pkgs = require('./package');
 const link = require('./girafe-link');
+const packs = require('./packs');
 const compat = require('./compat');
 const updater = require('./updater');
 const nodeRuns = require('./node-runs');
@@ -114,12 +115,25 @@ async function handle(req, res) {
   }
 
   // Packages and the GIRAFE link
+  if (req.method === 'GET' && p === '/api/packs') return send(res, 200, { packs: packs.listPacks() });
+  if (req.method === 'POST' && (k = m(/^\/api\/packs\/([a-z0-9][a-z0-9-]{0,63})\/keys$/))) {
+    const { slot, keyId } = await readJson(req);
+    const pk = packs.getPack(k[1]);
+    if (!pk) return send(res, 404, { error: 'no such pack' });
+    if (!pk.keys.some((x) => x.slot === slot)) return send(res, 400, { error: 'that pack has no such key slot' });
+    if (keyId && !keys.list().some((x) => x.id === keyId)) return send(res, 400, { error: 'no such key' });
+    return send(res, 200, { keySlots: packs.setKey(k[1], String(slot), keyId ? String(keyId) : null) });
+  }
   if (req.method === 'POST' && p === '/api/pack') {
-    const { id } = await readJson(req);
+    const { id, pack: packId } = await readJson(req);
+    if (packId) {
+      try { const r = pkgs.packPack(String(packId)); return send(res, 200, { name: r.name, size: r.size, hash: r.hash, version: r.version, url: '/packages/' + r.name }); }
+      catch (e) { return send(res, 400, { error: e.message }); }
+    }
     try { const r = pkgs.pack(String(id || '')); return send(res, 200, { name: r.name, size: r.size, hash: r.hash, version: r.version, url: '/packages/' + r.name }); }
     catch (e) { return send(res, 400, { error: e.message }); }
   }
-  if (req.method === 'GET' && (k = m(/^\/packages\/([a-z0-9.-]+\.gnode)$/))) {
+  if (req.method === 'GET' && (k = m(/^\/packages\/([a-z0-9.-]+\.g(?:node|pack))$/))) {
     const fp = pkgs.packageFile(k[1]);
     if (!fp || !fs.existsSync(fp)) return send(res, 404, { error: 'no such package' });
     return send(res, 200, fs.readFileSync(fp), { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="${k[1]}"` });
@@ -130,6 +144,11 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === '/api/girafe/send') {
     const { id } = await readJson(req);
     try { return send(res, 200, await link.send(String(id || ''))); } catch (e) { return send(res, e.needsLink ? 409 : e.code ? 409 : 400, { error: e.message, needsLink: !!e.needsLink, code: e.code || null }); }
+  }
+
+  if (req.method === 'POST' && p === '/api/girafe/send-pack') {
+    const { id } = await readJson(req);
+    try { return send(res, 200, await link.sendPack(String(id || ''))); } catch (e) { return send(res, e.needsLink ? 409 : e.code ? 409 : 400, { error: e.message, needsLink: !!e.needsLink, code: e.code || null }); }
   }
 
   // Your nodes on GitHub (kit/github.js). Errors say what to do; a secret found stops a save.
