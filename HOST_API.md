@@ -26,6 +26,7 @@ The folder name is the node's id: lowercase letters, digits and dashes.
   "name": "My node",
   "version": "0.1.0",
   "description": "One sentence a user reads in the palette.",
+  "category": "Text tools",
   "hostApi": 1,
   "girafe": ">=0.67.0",
   "icon": "🔠",
@@ -45,6 +46,7 @@ The folder name is the node's id: lowercase letters, digits and dashes.
 | `version` | Your node's version, `major.minor.patch`. |
 | `hostApi` | The host API your code is written for: 1 (0 still runs, without `ctx.http`). |
 | `girafe` | The oldest GIRAFE you need, as `>=x.y.z`. |
+| `category` | Optional. The section the node is listed under in GIRAFE's palette ("Your plugin nodes" › this name), 40 characters at most. Nodes with the same category sit together. |
 | `inputs` | `min` / `max` input sockets. With `min: 1` the node is skipped when nothing arrives. `max: 0` = a starting node. |
 | `outputs` | Output socket names. `["out"]` for one; `["yes", "no"]` for named exits. |
 | `fields` | The panel. Types: `text`, `textarea`, `number`, `select` (with `options`: `["a","b"]` or `[["value","Label"]]`), `checkbox`. Optional `default`, `placeholder`. |

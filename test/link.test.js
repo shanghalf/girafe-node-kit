@@ -46,9 +46,13 @@ test.before(async () => {
 });
 test.after(() => { fake.close(); fs.rmSync(WS, { recursive: true, force: true }); });
 
+// The example node's version as shipped (read, not hard-coded), and one patch above it.
+const GEMINI_VERSION = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'workspace', 'nodes', 'gemini-image', 'manifest.json'), 'utf8')).version;
+const BUMPED = GEMINI_VERSION.replace(/(\d+)$/, (d) => String(Number(d) + 1));
+
 test('pack makes a signed package that verifies; any change is detected', () => {
   const r = pkgs.pack('gemini-image');
-  assert.equal(r.name, 'gemini-image-1.0.0.gnode');
+  assert.equal(r.name, `gemini-image-${GEMINI_VERSION}.gnode`);
   const v = pkgs.verify(JSON.parse(fs.readFileSync(r.file, 'utf8')));
   assert.equal(v.id, 'gemini-image');
   const tamper = (fn) => { const p = JSON.parse(fs.readFileSync(r.file, 'utf8')); fn(p); return () => pkgs.verify(p); };
@@ -79,10 +83,10 @@ test('send: new node, then the same version refused, then a raised version updat
   assert.ok(!up.body.includes(TOKEN), 'the token is only in the header');
   await assert.rejects(link.send('gemini-image'), /already in your account; raise the version/);
   const mf = path.join(WS, 'nodes', 'gemini-image', 'manifest.json');
-  const m = JSON.parse(fs.readFileSync(mf, 'utf8')); m.version = '1.0.1'; fs.writeFileSync(mf, JSON.stringify(m));
+  const m = JSON.parse(fs.readFileSync(mf, 'utf8')); m.version = BUMPED; fs.writeFileSync(mf, JSON.stringify(m));
   const r2 = await link.send('gemini-image');
   assert.equal(r2.status, 'updated');
-  const log = require('../kit/netguard').report().log.find((e) => /Send "gemini-image" 1.0.1/.test(e.purpose));
+  const log = require('../kit/netguard').report().log.find((e) => e.purpose.includes(`Send "gemini-image" ${BUMPED}`));
   assert.equal(log.key, 'GIRAFE link');
 });
 

@@ -47,6 +47,7 @@ function checkManifest(m, dirName) {
   if (!/^\d+\.\d+\.\d+$/.test(String(m.version || ''))) problems.push('"version" must look like 1.0.0');
   if (!SUPPORTED_HOST_APIS.includes(m.hostApi)) problems.push(`"hostApi" is ${JSON.stringify(m.hostApi)}; this GIRAFE runs host API ${SUPPORTED_HOST_APIS.join(' and ')}`);
   if (!girafeOk(m.girafe)) problems.push(`needs GIRAFE ${m.girafe}, this is ${GIRAFE_VERSION}`);
+  if (m.category !== undefined && (typeof m.category !== 'string' || !m.category.trim() || m.category.length > 40)) problems.push('"category": a short name (40 characters at most)');
   const outs = m.outputs ?? ['out'];
   if (!Array.isArray(outs) || !outs.length || outs.some((o) => !/^[a-z][a-z0-9_]{0,23}$/.test(o))) problems.push('"outputs": a list of short lowercase names, like ["out"] or ["yes", "no"]');
   for (const f of m.fields || []) {

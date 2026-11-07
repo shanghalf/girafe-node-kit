@@ -5,6 +5,8 @@ with what plugin authors need to do.
 
 ## Unreleased (on main)
 
+- Manifest: optional `"category"`, the section a node is listed under in GIRAFE's palette.
+  Gemini image (now 1.1.0) is in "Image generation".
 - GIRAFE now accepts linked kits and sent nodes (admin accounts first): the node shows in the
   Promptmixer palette on all your devices, with versions you can roll back.
 - Connect: a local GIRAFE on another port of the same machine is accepted (`KIT_GIRAFE_URL`).
