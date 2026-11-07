@@ -60,7 +60,11 @@
   <a class="sub" href="#key-page">The page lock (CSP)</a>
   <a class="sub" href="#key-limits">What it doesn't protect</a>
   <a class="sub" href="#key-tests">How it's tested</a>
-  <a href="#cache">6. Saved answers (cache)</a>
+  <a href="#share">6. Packages and the GIRAFE link</a>
+  <a class="sub" href="#pack">Pack: the .gnode file</a>
+  <a class="sub" href="#link">Connect to GIRAFE</a>
+  <a class="sub" href="#send">Send to my GIRAFE</a>
+  <a href="#cache">6b. Saved answers (cache)</a>
   <a href="#security">7. Security summary</a>
   <a href="#testing">8. Tests</a>
   <a href="#versions">9. Versions and releases</a>
@@ -166,6 +170,8 @@ docs.html               this document</code></pre>
   <tr><td><code>GET /api/keys</code>, <code>POST /api/keys</code>, <code>DELETE /api/keys/:id</code></td><td>Key bank: list (masked), add (the paste step), remove.</td></tr>
   <tr><td><code>GET /api/network</code></td><td>The network log and counters.</td></tr>
   <tr><td><code>POST /api/models</code></td><td>Models a key can use (asks its service, through the guard).</td></tr>
+  <tr><td><code>POST /api/pack</code>, <code>GET /packages/:name</code></td><td>Pack a plugin node into a signed <code>.gnode</code>; download it.</td></tr>
+  <tr><td><code>GET /api/girafe</code>, <code>POST /api/girafe/connect</code>, <code>POST /api/girafe/disconnect</code>, <code>POST /api/girafe/send</code></td><td>Link state; start the device link; unlink; pack and send a node to the linked account.</td></tr>
   <tr><td><code>POST /api/files</code>, <code>GET /files/:key</code></td><td>Upload a picture (raw body, PNG/JPEG/WebP/GIF, 25 MB); serve a stored file.</td></tr>
   <tr><td><code>POST /api/run</code>, <code>GET /api/runs/:id</code>, <code>POST /api/runs/:id/stop</code>, <code>POST /api/runs/:id/answer</code></td><td>Start a run (202 + id), poll its state, stop it, answer a Yes / No question.</td></tr>
   <tr><td><code>GET /</code>, <code>/app.js</code>…</td><td>The page, with the CSP header.</td></tr>
@@ -309,7 +315,39 @@ Referrer-Policy: no-referrer</code></pre>
   <li>the gemini-image plugin gets its key added by the host, and its process has no <code>fetch</code>, no network module, and no way to set a login header or reach an undeclared host.</li>
 </ul>
 
-<h2 id="cache">6. Saved answers (cache)</h2>
+<h2 id="share">6. Packages and the GIRAFE link</h2>
+<p>The kit works fully without a GIRAFE account. Linking one is optional and one click away; it lets you send your nodes to your account, where they run on GIRAFE's server, on all your devices, seen by you only. GIRAFE's side of this (the <code>/link</code> page, installs, versions, the marketplace) is being built next; the kit side and its protocol are described here.</p>
+
+<h3 id="pack">Pack: the .gnode file</h3>
+<p><code>kit/package.js</code>. <strong>📦 Pack</strong> in a plugin's panel writes <code>workspace/packages/&lt;id&gt;-&lt;version&gt;.gnode</code>, one JSON file:</p>
+<pre><code>{ "format": "girafe-node-package", "formatVersion": 1,
+  "id", "version", "hostApi", "girafe", "manifest",
+  "files": { "&lt;path&gt;": { "sha256", "size", "data" (base64) } },
+  "hash":   sha256 of the sorted lines "&lt;path&gt; &lt;sha256&gt;\n",
+  "author": { "publicKey" (Ed25519, base64 DER) },
+  "signature": Ed25519 over "hash",
+  "packedAt", "kit" }</code></pre>
+<ul>
+  <li>All plain files of the node's folder, except dotfiles, <code>node_modules/</code> and other packages; links are refused; 64 files and 10 MB at most.</li>
+  <li>The author key pair is made on the first pack: <code>workspace/.kit/author-ed25519.pem</code> (mode 600). Only the public key ever goes in a package.</li>
+  <li><code>verify(pkg)</code> is what GIRAFE runs on upload: every file against its checksum, the hash against the file list, the signature against the author key, file names (no <code>..</code>, no absolute paths), the manifest (same checks as the kit), id and version agreeing with the manifest. GIRAFE remembers the author key of each node in an account: a later version signed by another key is refused.</li>
+</ul>
+
+<h3 id="link">Connect to GIRAFE</h3>
+<p><code>kit/girafe-link.js</code>: the OAuth 2.0 <em>device authorization</em> pattern (as GitHub's command line, or signing in on a TV).</p>
+<ol>
+  <li><strong>☁️ Connect to GIRAFE</strong> → the kit calls <code>POST /api/kit/link/start { kitName, kitVersion }</code> on GIRAFE and gets <code>{ deviceCode, userCode, verifyUrl, interval, expiresIn }</code>. A <code>verifyUrl</code> on another site than GIRAFE is refused.</li>
+  <li>The dialog shows the short code (like <code>GIRA-FE42</code>) and a button opening <code>verifyUrl</code>. On GIRAFE the person logs in or creates an account, checks the code, and clicks <strong>Allow</strong>. The password is only ever typed on GIRAFE.</li>
+  <li>The kit polls <code>POST /api/kit/link/poll { deviceCode }</code> every <code>interval</code> seconds until <code>approved</code> (with <code>token</code> and <code>account { name, email }</code>), <code>denied</code> or <code>expired</code>.</li>
+  <li>The token is saved in the key bank as a key of service <code>girafe</code>: encrypted, never shown, and guarded like any key (it may only go to <code>girafe.live</code>, in the <code>Authorization</code> header). It can't be pasted by hand, and is not offered in key pickers. <code>workspace/.kit/girafe.json</code> keeps the account name and the key id.</li>
+  <li><strong>Disconnect</strong> (in the dialog, or Delete on that key) calls <code>POST /api/kit/link/revoke</code> and removes the token. GIRAFE will also list linked kits (Settings › Connected kits) with a Revoke button.</li>
+</ol>
+<p>The token's power is decided by GIRAFE: sending and updating the account's own nodes, nothing else (no topics, graphs, keys). <code>KIT_GIRAFE_URL</code> points the kit at another GIRAFE (a local one, or a test server).</p>
+
+<h3 id="send">Send to my GIRAFE</h3>
+<p><strong>☁️ Send to my GIRAFE</strong> (or <em>Connect and send</em> when not linked) packs the node and sends it: <code>POST /api/kit/packages</code>, body = the package, <code>Authorization: Bearer &lt;token&gt;</code>. GIRAFE answers <code>{ status: installed | updated, message }</code>, refuses a version that isn't higher than the one in the account (409), and a 401 means the link was revoked: the kit drops it and asks to connect again. Each send is in the Network log as <em>Send "&lt;id&gt;" &lt;version&gt; to my GIRAFE</em>.</p>
+
+<h2 id="cache">6b. Saved answers (cache)</h2>
 <p><code>kit/cache.js</code>, <code>workspace/.kit/cache.json</code>, the newest 500 entries. The key is a SHA-256 of what defines the request:</p>
 <ul>
   <li>Prompt: service, model, final text, picture file keys;</li>
@@ -326,13 +364,15 @@ Referrer-Policy: no-referrer</code></pre>
   <tr><td>A plugin calling the internet on its own</td><td>No fetch, network modules locked; <code>ctx.http</code> only to its declared hosts, through the guard.</td></tr>
   <tr><td>A runaway plugin</td><td>128 MB, 60 s, one process per firing.</td></tr>
   <tr><td>A key leaving for the wrong place</td><td>Network guard, watch, log, CSP (section 5).</td></tr>
+  <tr><td>A tampered package</td><td>Checksums per file, a package hash, an Ed25519 signature; the author key is pinned per node on GIRAFE.</td></tr>
+  <tr><td>The kit acting on your GIRAFE account</td><td>Device link (no password in the kit), a token limited to your own nodes, revocable from both sides, guarded and logged like a key.</td></tr>
   <tr><td>A tampered Node download</td><td>SHA-256 checked against nodejs.org's published list.</td></tr>
   <tr><td>Path tricks in file and graph names</td><td>Strict patterns for ids and file names before any path is built.</td></tr>
 </table>
 
 <h2 id="testing">8. Tests</h2>
 <pre><code>npm test     # node --test test/*.test.js</code></pre>
-<p><code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
+<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
 
 <h2 id="versions">9. Versions and releases</h2>
 <p>Three numbers, in <code>kit/version.js</code>:</p>

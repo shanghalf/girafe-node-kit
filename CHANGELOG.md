@@ -23,6 +23,11 @@ with what plugin authors need to do.
 - **Gemini image** (`workspace/nodes/gemini-image`): Generate image rebuilt as a plugin, the first
   real plugin and the test case for packaging and the marketplace.
 - The panel says what a plugin may do in plain words.
+- **📦 Pack**: a plugin node becomes one signed `.gnode` file (checksums, package hash,
+  Ed25519 signature; the author key is made on first pack and stays in `workspace/.kit/`).
+- **☁️ Connect to GIRAFE** (optional): one-click device link, approved on girafe.live; no password
+  in the kit; the link token is kept and guarded like a key. **Send to my GIRAFE** packs and
+  uploads a node to your account (GIRAFE's side comes next).
 
 ## 0.1.0 · simulates GIRAFE 0.67.3 · host API 0 (draft)
 

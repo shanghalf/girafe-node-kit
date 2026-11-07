@@ -17,6 +17,8 @@ const SERVICES = {
   openai: { label: 'OpenAI', get: 'https://platform.openai.com/api-keys' },
   gemini: { label: 'Google Gemini', get: 'https://aistudio.google.com/apikey' },
   other: { label: 'Other', get: null },
+  // Not pasted: the token a GIRAFE account gives this computer when you connect the kit.
+  girafe: { label: 'GIRAFE account link', get: null, internal: true },
 };
 
 function secret() {

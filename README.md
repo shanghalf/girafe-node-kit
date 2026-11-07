@@ -45,6 +45,14 @@ They need your own API key: **🔑 Keys** at the top, paste it, save.
 - The same request twice gives the saved answer or picture, with no new call and no cost.
 - Nodes you build as plugins never see keys.
 
+## Share a node
+
+In a plugin node's panel:
+- **📦 Pack** makes a signed `.gnode` file of it.
+- **☁️ Send to my GIRAFE** puts it in your GIRAFE account, where it works on all your devices and
+  only you see it. The first time, **Connect to GIRAFE** opens girafe.live: log in (or create an
+  account) there and click Allow. The kit never sees your password, and works fine unconnected.
+
 ## What's inside
 
 | | |

@@ -516,6 +516,7 @@ function renderPanel() {
     el('div', { class: 'caps', text: `host API ${k.hostApi} · needs GIRAFE ${k.girafe || 'any'} · outputs: ${(k.outputs || []).join(', ')}` }),
     el('div', { class: 'caps', text: 'It may: ' + capsText(k.capabilities) }),
     el('div', { class: 'caps', text: `folder: workspace/nodes/${k.id}/` })));
+  if (!k.core && !k.missing) kids.push(packBox(k));
   if (st) kids.push(runBox(st));
   kids.push(el('div', { class: 'row' }, el('button', { text: n.disabled ? '● Turn on' : '○ Turn off', onclick: () => { n.disabled = !n.disabled; changed(); } }), el('button', { class: 'danger', text: '🗑 Delete', onclick: deleteSelected })));
   p.replaceChildren(...kids);
@@ -540,6 +541,73 @@ function field(f, value, onInput) {
   input.addEventListener('input', () => onInput(f.type === 'number' ? (input.value === '' ? '' : Number(input.value)) : input.value));
   return el('div', { class: 'field' }, el('label', { text: f.label || f.key }), input);
 }
+// ---------- packages and the GIRAFE link ----------
+S.link = null;
+async function loadLink() {
+  try { S.link = await api('/api/girafe'); } catch { S.link = null; }
+  const btn = $('#linkBtn');
+  if (btn) btn.textContent = S.link?.connected ? `☁️ ${S.link.account?.name || 'GIRAFE'}` : '☁️ Connect to GIRAFE';
+  if (!(document.activeElement?.matches('input, textarea, select') && $('#panel').contains(document.activeElement))) renderPanel();
+}
+S.packMsg = {};
+function packBox(k) {
+  const out = el('div', { class: 'muted', 'data-pack': k.id });
+  // The panel may be redrawn while a send is under way: write into whichever copy is on screen.
+  const paint = (node, m) => node.replaceChildren(m.t, ...(m.link ? [el('a', { href: m.link.url, download: m.link.name, text: 'download' })] : []));
+  const say = (t, link) => { S.packMsg[k.id] = { t, link }; paint(out, S.packMsg[k.id]); for (const n of document.querySelectorAll(`[data-pack="${k.id}"]`)) paint(n, S.packMsg[k.id]); };
+  if (S.packMsg[k.id]) say(S.packMsg[k.id].t, S.packMsg[k.id].link);
+  const pack = async () => {
+    say('Packing…');
+    try { const r = await api('/api/pack', { method: 'POST', body: JSON.stringify({ id: k.id }) }); say(`✓ ${r.name} · ${(r.size / 1024).toFixed(1)} KB · signed · `, r); }
+    catch (e) { say('⚠️ ' + e.message); }
+  };
+  const sendIt = async () => {
+    if (!S.link?.connected) return openLink(() => sendIt());
+    say(`Sending ${k.name} ${k.version} to your GIRAFE…`);
+    try { const r = await api('/api/girafe/send', { method: 'POST', body: JSON.stringify({ id: k.id }) }); say(`✓ ${r.message || `${k.name} ${r.version} is in your GIRAFE account.`}`); }
+    catch (e) { say('⚠️ ' + e.message); if (/Connect/.test(e.message)) loadLink(); }
+  };
+  return el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Share this node' }),
+    el('div', { class: 'row' }, el('button', { text: '📦 Pack', title: 'Make a signed .gnode file of this node', onclick: pack }),
+      el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send to my GIRAFE' : '☁️ Connect and send to my GIRAFE', onclick: sendIt })),
+    el('div', { class: 'caps', text: `Version ${k.version}. GIRAFE accepts each version once: raise "version" in manifest.json before sending a change.` }), out);
+}
+function openLink(after) {
+  const ov = $('#keysDialog');
+  let poll = null;
+  const close = () => { clearTimeout(poll); ov.hidden = true; };
+  const draw = () => {
+    const L = S.link || {};
+    const body = [];
+    if (L.connected) {
+      body.push(el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Connected' }),
+        el('div', { class: 'caps', text: `${L.account?.name || ''}${L.account?.email ? ' · ' + L.account.email : ''} on ${L.base} since ${String(L.linkedAt || '').slice(0, 10)}` }),
+        el('div', { class: 'caps', text: 'The kit can send and update your own nodes in that account, nothing else. The link is stored like your keys (encrypted, only ever sent to GIRAFE). You can also revoke it from GIRAFE: Settings › Connected kits.' })));
+      body.push(el('div', { class: 'row' }, el('button', { class: 'danger', text: 'Disconnect', onclick: async () => { await api('/api/girafe/disconnect', { method: 'POST' }); await loadLink(); await loadKeys(); draw(); } }),
+        after ? el('button', { class: 'primary', text: 'Continue', onclick: () => { close(); after(); } }) : null));
+    } else if (L.pending && L.pending.state === 'waiting') {
+      body.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Approve on GIRAFE' }),
+        el('div', { class: 'link-code', text: L.pending.userCode }),
+        el('div', { class: 'caps', text: 'Click below: GIRAFE opens with this code. Log in (or create an account), check the code is the same, and click Allow. This window notices by itself.' }),
+        el('div', { class: 'row', style: { marginTop: '8px' } }, el('button', { class: 'primary', text: `Open ${new URL(L.pending.verifyUrl).host}`, onclick: () => window.open(L.pending.verifyUrl, '_blank', 'noopener') })),
+        L.pending.error ? el('div', { class: 'problems', text: L.pending.error }) : el('div', { class: 'muted', text: '⏳ waiting for your approval…' })));
+      poll = setTimeout(async () => { await loadLink(); if (S.link?.connected) await loadKeys(); draw(); }, 2000);
+    } else {
+      if (L.pending && L.pending.state !== 'approved') body.push(el('div', { class: 'problems', text: L.pending.state === 'denied' ? 'You said no on GIRAFE. Nothing was linked.' : 'The code expired. Start again.' }));
+      body.push(el('p', { class: 'desc', text: 'Optional. Connecting lets the kit send your nodes to your GIRAFE account, where they work on all your devices and only you see them. Your GIRAFE password is never typed in the kit: you log in on GIRAFE itself.' }));
+      const err = el('div', { class: 'problems' });
+      body.push(el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Connect', onclick: async () => {
+        try { S.link = await api('/api/girafe/connect', { method: 'POST' }); draw(); } catch (e) { err.textContent = e.message; }
+      } })), err);
+    }
+    ov.replaceChildren(el('div', { class: 'dialog' },
+      el('div', { class: 'dialog-hd' }, el('h3', { text: '☁️ GIRAFE account' }), el('button', { class: 'link', text: '✕', title: 'Close', onclick: close })),
+      ...body));
+    ov.hidden = false;
+  };
+  loadLink().then(draw);
+}
+
 // ---------- key bank ----------
 S.keys = []; S.services = {};
 async function loadKeys() { const d = await api('/api/keys'); S.keys = d.keys; S.services = d.services; }
@@ -576,7 +644,7 @@ function openKeys() {
   const ov = $('#keysDialog');
   const draw = () => {
     const label = el('input', { placeholder: 'Name, e.g. "My Gemini key"' });
-    const service = el('select', {}, ...Object.entries(S.services).map(([id, s]) => el('option', { value: id, text: s.label })));
+    const service = el('select', {}, ...Object.entries(S.services).filter(([, x]) => !x.internal).map(([id, s]) => el('option', { value: id, text: s.label })));
     const value = el('input', { type: 'password', placeholder: 'Paste the key', autocomplete: 'off' });
     value.addEventListener('input', () => { const v = value.value.trim(); service.value = /^sk-ant-/.test(v) ? 'anthropic' : /^AIza/.test(v) ? 'gemini' : /^sk-/.test(v) ? 'openai' : service.value; });
     const err = el('div', { class: 'problems' });
@@ -595,7 +663,7 @@ function openKeys() {
       el('p', { class: 'desc', text: 'Keys for the nodes that call an outside service (Prompt, Generate image). They stay on this computer, encrypted, in workspace/.kit/. Nodes you build as plugins never see them.' }),
       S.keys.length ? el('div', { class: 'box' }, ...S.keys.map((k) => el('div', { class: 'key-row' },
         el('div', {}, el('b', { text: k.label }), el('div', { class: 'muted', text: `${S.services[k.service]?.label || k.service} · ${k.masked}` })),
-        el('button', { class: 'danger', text: 'Delete', onclick: async () => { if (!confirm(`Delete the key "${k.label}"?`)) return; await api('/api/keys/' + k.id, { method: 'DELETE' }); await loadKeys(); draw(); renderPanel(); } })))) : el('div', { class: 'muted', text: 'No keys yet.' }),
+        el('button', { class: 'danger', text: k.service === 'girafe' ? 'Disconnect' : 'Delete', onclick: async () => { if (!confirm(k.service === 'girafe' ? 'Disconnect the kit from your GIRAFE account?' : `Delete the key "${k.label}"?`)) return; if (k.service === 'girafe') await api('/api/girafe/disconnect', { method: 'POST' }); else await api('/api/keys/' + k.id, { method: 'DELETE' }); await loadKeys(); await loadLink(); draw(); renderPanel(); } })))) : el('div', { class: 'muted', text: 'No keys yet.' }),
       el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Add a key' }),
         el('div', { class: 'field' }, el('label', { text: 'Key' }), value),
         el('div', { class: 'field' }, el('label', { text: 'Service' }), service),
@@ -603,7 +671,7 @@ function openKeys() {
         err, el('button', { class: 'primary', text: 'Save the key', onclick: add })),
       S.lastPaste ? pasteReport(S.lastPaste) : null,
       networkBox(),
-      el('div', { class: 'muted' }, 'Where to get one: ', ...Object.values(S.services).filter((x) => x.get).flatMap((x, i) => [i ? ' · ' : '', el('a', { href: x.get, target: '_blank', rel: 'noopener', text: x.label })]))));
+      el('div', { class: 'muted' }, 'Where to get one: ', ...Object.values(S.services).filter((x) => x.get && !x.internal).flatMap((x, i) => [i ? ' · ' : '', el('a', { href: x.get, target: '_blank', rel: 'noopener', text: x.label })]))));
     ov.hidden = false;
     value.focus();
   };
@@ -760,6 +828,8 @@ async function deleteGraph() {
   $('#fitBtn').addEventListener('click', fit);
   $('#keysBtn').addEventListener('click', openKeys);
   await loadKeys();
+  $('#linkBtn').addEventListener('click', () => openLink());
+  await loadLink();
   $('#reloadKinds').addEventListener('click', () => loadKinds().then(render));
   window.addEventListener('focus', () => loadKinds().then(render));
   const { graphs } = await api('/api/graphs');

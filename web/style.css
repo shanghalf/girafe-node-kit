@@ -158,3 +158,7 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .net-host, .net-res { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn-link { background: var(--bg3); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; color: var(--text); text-decoration: none; }
 .btn-link:hover { border-color: #3a4254; }
+.link-code { font: 700 30px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .18em; text-align: center; padding: 10px; margin: 6px 0; border: 1px dashed var(--accent); border-radius: 8px; color: var(--accent); }
+.top button, .top .btn-link { white-space: nowrap; }
+.top select { width: 170px; }
+@media (max-width: 1360px) { .title-input { display: none; } .version { display: none; } }

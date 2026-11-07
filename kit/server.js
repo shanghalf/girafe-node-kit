@@ -12,6 +12,8 @@ const keys = require('./keys');
 const textAI = require('./ai/text');
 const gemini = require('./ai/gemini-image');
 const netguard = require('./netguard');
+const pkgs = require('./package');
+const link = require('./girafe-link');
 
 const WEB = path.join(__dirname, '..', 'web');
 const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
@@ -74,7 +76,9 @@ async function handle(req, res) {
     // We count what the kit sent to the internet meanwhile, to show you: it should be nothing.
     const before = netguard.mark();
     try {
-      const key = keys.add(await readJson(req));
+      const body = await readJson(req);
+      if (body.service === 'girafe') return send(res, 400, { error: 'The GIRAFE link is made with "Connect to GIRAFE", not pasted.' });
+      const key = keys.add(body);
       return send(res, 200, { key, during: netguard.since(before) });
     } catch (e) { return send(res, 400, { error: e.message }); }
   }
@@ -87,6 +91,25 @@ async function handle(req, res) {
       if (kind === 'image' && key.service === 'gemini') return send(res, 200, { models: gemini.IMAGE_MODELS });
       return send(res, 200, { models: await textAI.listModels({ service: key.service, key: key.value, keyLabel: key.label, kind }) });
     } catch (e) { return send(res, 400, { error: e.message }); }
+  }
+
+  // Packages and the GIRAFE link
+  if (req.method === 'POST' && p === '/api/pack') {
+    const { id } = await readJson(req);
+    try { const r = pkgs.pack(String(id || '')); return send(res, 200, { name: r.name, size: r.size, hash: r.hash, version: r.version, url: '/packages/' + r.name }); }
+    catch (e) { return send(res, 400, { error: e.message }); }
+  }
+  if (req.method === 'GET' && (k = m(/^\/packages\/([a-z0-9.-]+\.gnode)$/))) {
+    const fp = pkgs.packageFile(k[1]);
+    if (!fp || !fs.existsSync(fp)) return send(res, 404, { error: 'no such package' });
+    return send(res, 200, fs.readFileSync(fp), { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="${k[1]}"` });
+  }
+  if (req.method === 'GET' && p === '/api/girafe') return send(res, 200, link.status());
+  if (req.method === 'POST' && p === '/api/girafe/connect') { try { return send(res, 200, await link.connect()); } catch (e) { return send(res, 502, { error: e.message }); } }
+  if (req.method === 'POST' && p === '/api/girafe/disconnect') return send(res, 200, await link.disconnect());
+  if (req.method === 'POST' && p === '/api/girafe/send') {
+    const { id } = await readJson(req);
+    try { return send(res, 200, await link.send(String(id || ''))); } catch (e) { return send(res, e.needsLink ? 409 : 400, { error: e.message, needsLink: !!e.needsLink }); }
   }
 
   if (req.method === 'POST' && p === '/api/files') {
