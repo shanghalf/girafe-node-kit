@@ -39,6 +39,7 @@ async function post(route, body, { token, purpose } = {}) {
   }
   const text = await res.text();
   let data = {}; try { data = JSON.parse(text); } catch {}
+  if (res.status === 404 && route.startsWith('/api/kit/')) throw Object.assign(new Error(`${new URL(base()).host} doesn't offer linking the kit yet. Everything else in the kit works without it.`), { status: 404 });
   if (!res.ok) throw Object.assign(new Error(data.error || `GIRAFE answered HTTP ${res.status}`), { status: res.status });
   return data;
 }
