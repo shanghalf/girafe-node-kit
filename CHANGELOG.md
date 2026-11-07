@@ -5,6 +5,9 @@ with what plugin authors need to do.
 
 ## Unreleased (on main)
 
+- GIRAFE now accepts linked kits and sent nodes (admin accounts first): the node shows in the
+  Promptmixer palette on all your devices, with versions you can roll back.
+- Connect: a local GIRAFE on another port of the same machine is accepted (`KIT_GIRAFE_URL`).
 - Nodes now look and behave like GIRAFE's Promptmixer nodes: 220 px cards with the state
   animation, kind label, ⏻ toggle, lettered sockets on both sides, wires coloured by their source
   (green when something went through, grey dashes when nothing did).

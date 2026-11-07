@@ -346,6 +346,8 @@ Referrer-Policy: no-referrer</code></pre>
 
 <h3 id="send">Send to my GIRAFE</h3>
 <p><strong>☁️ Send to my GIRAFE</strong> (or <em>Connect and send</em> when not linked) packs the node and sends it: <code>POST /api/kit/packages</code>, body = the package, <code>Authorization: Bearer &lt;token&gt;</code>. GIRAFE answers <code>{ status: installed | updated, message }</code>, refuses a version that isn't higher than the one in the account (409), and a 401 means the link was revoked: the kit drops it and asks to connect again. Each send is in the Network log as <em>Send "&lt;id&gt;" &lt;version&gt; to my GIRAFE</em>.</p>
+<p><strong>In GIRAFE</strong> (from GIRAFE 0.68.0, open to admin accounts first): the node appears in the Promptmixer palette under <em>Your plugin nodes</em>, on every device of that account and for nobody else. GIRAFE checks the package again (file hashes, signature), pins the author key per node id, keeps every version (Settings › Connected kits: pick a version to roll back, turn it off, remove it, cut a kit's link) and runs the node in the same kind of locked child process as the kit. Key slots are filled from GIRAFE's own Key bank; GIRAFE adds the key to the call itself, only toward that service's official host. A plugin node doesn't run in a graph shared with someone else.</p>
+<p>Local test against a GIRAFE on your own machine: start the kit with <code>KIT_GIRAFE_URL=http://localhost:3003</code>. The link page may then be on another port of the same machine (the kit compares host names, not ports).</p>
 
 <h2 id="cache">6b. Saved answers (cache)</h2>
 <p><code>kit/cache.js</code>, <code>workspace/.kit/cache.json</code>, the newest 500 entries. The key is a SHA-256 of what defines the request:</p>

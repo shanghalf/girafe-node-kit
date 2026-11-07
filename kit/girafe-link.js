@@ -60,7 +60,8 @@ async function connect() {
   const r = await post('/api/kit/link/start', { kitName: `GIRAFE node kit on ${os.hostname()}`.slice(0, 80), kitVersion: KIT_VERSION }, { purpose: 'Connect to GIRAFE (start)' });
   if (!r.deviceCode || !r.userCode || !r.verifyUrl) throw new Error('GIRAFE gave an unexpected answer.');
   const verify = new URL(r.verifyUrl);
-  if (verify.origin !== new URL(base()).origin) throw new Error('GIRAFE pointed to a page on another site; refused.');
+  // Same site only (the host name; a local GIRAFE serves its page and its API on two ports).
+  if (verify.hostname !== new URL(base()).hostname || !/^https?:$/.test(verify.protocol)) throw new Error('GIRAFE pointed to a page on another site; refused.');
   pending = { deviceCode: r.deviceCode, userCode: r.userCode, verifyUrl: verify.toString(), expiresAt: Date.now() + (r.expiresIn || 600) * 1000, interval: Math.max(2, r.interval || 3), state: 'waiting' };
   schedule();
   return status();
