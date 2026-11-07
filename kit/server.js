@@ -122,6 +122,9 @@ async function handle(req, res) {
     }
   }
 
+  if (req.method === 'GET' && (p === '/docs' || p === '/docs.html')) {
+    return send(res, 200, fs.readFileSync(path.join(__dirname, '..', 'docs.html')), { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': CSP, 'Referrer-Policy': 'no-referrer' });
+  }
   if (req.method === 'GET' && !p.startsWith('/api/')) {
     const rel = p === '/' ? 'index.html' : p.slice(1);
     const fp = path.join(WEB, path.normalize(rel));

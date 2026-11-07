@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GIRAFE node kit · Technical documentation</title>
+<style>
+  :root { --bg:#0f1115; --bg2:#151821; --bg3:#1c2027; --line:#2a2f38; --text:#e8ebf0; --soft:#9aa5b4; --dim:#6b7686; --accent:#3ee0b8; --blue:#7fb3ff; --amber:#f5d76e; --red:#e05a5a; --green:#5fd97a; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; } body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 Inter, "Segoe UI", system-ui, -apple-system, sans-serif; }
+  .wrap { display: grid; grid-template-columns: 260px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; }
+  nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 28px 18px; border-right: 1px solid var(--line); font-size: 14px; }
+  nav .brand { font-weight: 700; font-size: 17px; margin-bottom: 4px; }
+  nav .ver { color: var(--soft); font-size: 12px; margin-bottom: 18px; }
+  nav a { display: block; color: var(--soft); text-decoration: none; padding: 4px 8px; border-radius: 6px; }
+  nav a:hover { background: var(--bg3); color: var(--text); }
+  nav a.sub { padding-left: 22px; font-size: 13px; }
+  main { padding: 36px 44px 80px; min-width: 0; }
+  h1 { font-size: 34px; margin: 0 0 6px; }
+  h2 { font-size: 24px; margin: 52px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  h3 { font-size: 18px; margin: 28px 0 8px; color: var(--blue); }
+  p, li { color: #d5dae2; }
+  .lead { font-size: 18px; color: var(--soft); }
+  code { background: var(--bg3); border: 1px solid var(--line); padding: 1px 6px; border-radius: 5px; font: 13.5px ui-monospace, Consolas, monospace; color: #e6d7a8; }
+  pre { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font: 13px/1.5 ui-monospace, Consolas, monospace; }
+  pre code { background: none; border: 0; padding: 0; color: #d5dae2; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 18px; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--soft); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .note { border-left: 4px solid var(--amber); background: rgba(245,215,110,.06); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+  .good { border-left-color: var(--green); background: rgba(95,217,122,.06); }
+  .bad { border-left-color: var(--red); background: rgba(224,90,90,.07); }
+  .pill { display: inline-block; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--soft); margin-right: 6px; }
+  svg { max-width: 100%; height: auto; display: block; margin: 14px 0; }
+  .meta { color: var(--dim); font-size: 13px; }
+  :not(pre) > code { overflow-wrap: anywhere; }
+  @media (max-width: 860px) { table { display: block; overflow-x: auto; } .wrap { grid-template-columns: 1fr; } nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); } main { padding: 24px 18px 60px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="brand">🦒 GIRAFE node kit</div>
+  <div class="ver">Technical documentation · kit 0.1.0 (+ main) · simulates GIRAFE 0.67.3 · host API 0</div>
+  <a href="#overview">1. Overview</a>
+  <a href="#install">2. Install and start</a>
+  <a href="#layout">3. Files and folders</a>
+  <a href="#architecture">4. Architecture</a>
+  <a class="sub" href="#server">Server and routes</a>
+  <a class="sub" href="#engine">Run engine</a>
+  <a class="sub" href="#core">Core nodes</a>
+  <a class="sub" href="#plugins">Plugin nodes and sandbox</a>
+  <a class="sub" href="#page">The page</a>
+  <a href="#keys">5. How keys are managed</a>
+  <a class="sub" href="#key-life">A key's life</a>
+  <a class="sub" href="#key-store">Storage and encryption</a>
+  <a class="sub" href="#key-guard">The network guard</a>
+  <a class="sub" href="#key-watch">The watch and the log</a>
+  <a class="sub" href="#key-page">The page lock (CSP)</a>
+  <a class="sub" href="#key-limits">What it doesn't protect</a>
+  <a class="sub" href="#key-tests">How it's tested</a>
+  <a href="#cache">6. Saved answers (cache)</a>
+  <a href="#security">7. Security summary</a>
+  <a href="#testing">8. Tests</a>
+  <a href="#versions">9. Versions and releases</a>
+  <a href="#maintain">10. Keeping this document current</a>
+</nav>
+<main>
+
+<h1>GIRAFE node kit</h1>
+<p class="lead">Technical documentation: how the kit is built, how it runs a graph, how plugin nodes are isolated, and how API keys are handled.</p>
+<p class="meta">Last updated 2026-11-07. Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
+
+<h2 id="overview">1. Overview</h2>
+<p>The kit is a small, local copy of GIRAFE's Promptmixer canvas, used to build <strong>plugin nodes</strong>: nodes written by anyone, run in a sandbox, that talk to GIRAFE only through a fixed contract (the <em>host API</em>). It runs entirely on the user's computer: a Node.js server on <code>127.0.0.1</code> and a web page served by it.</p>
+<table>
+  <tr><th>Principle</th><th>What it means in the code</th></tr>
+  <tr><td>Zero dependencies</td><td>Node built-in modules only (<code>http</code>, <code>fs</code>, <code>crypto</code>, <code>child_process</code>, <code>diagnostics_channel</code>). No <code>npm install</code>. The page is plain JavaScript modules, no build step.</td></tr>
+  <tr><td>Minimal footprint</td><td>Everything the kit writes is inside its own folder (<code>workspace/</code>, plus <code>.runtime/</code> for a private Node). Deleting the folder removes the kit.</td></tr>
+  <tr><td>Same behaviour as GIRAFE</td><td>Core nodes, socket lettering, streams, Collect, the flow socket, node look and colours follow GIRAFE's own code.</td></tr>
+  <tr><td>Plugins are untrusted</td><td>Each firing runs in its own process with Node's permission model and no environment; it sees only <code>ctx</code>.</td></tr>
+  <tr><td>Keys never leak</td><td>Encrypted at rest, decrypted only for one call to their own service, every outgoing request checked and logged (section 5).</td></tr>
+</table>
+
+<h2 id="install">2. Install and start</h2>
+<h3>For users</h3>
+<ol>
+  <li>Download the ZIP of the <code>release</code> branch, unzip it.</li>
+  <li>Double-click <code>Start GIRAFE kit (Windows).cmd</code> or <code>Start GIRAFE kit (Mac).command</code>.</li>
+</ol>
+<p>The starter (<code>tools/start.ps1</code> on Windows, <code>tools/start.sh</code> on macOS/Linux):</p>
+<ol>
+  <li>uses the computer's Node.js if it is version 22 or newer;</li>
+  <li>otherwise downloads Node <code>22.22.0</code> from <code>nodejs.org/dist</code> into <code>.runtime/</code> inside the kit, checks its SHA-256 against nodejs.org's <code>SHASUMS256.txt</code> (a mismatch deletes the file and stops), unpacks it;</li>
+  <li>runs <code>node kit.js</code>, which starts the server and opens the browser on <code>http://localhost:4747</code> (the next free port if taken).</li>
+</ol>
+<p>The Windows starter is a <code>.cmd</code> calling PowerShell with <code>-ExecutionPolicy Bypass</code> for that one script. Windows (SmartScreen) and macOS (Gatekeeper) warn on first open because the files are not code-signed.</p>
+<h3>For developers</h3>
+<pre><code>node kit.js            # start and open the browser
+node kit.js --no-open  # start only
+PORT=5000 node kit.js  # another port
+npm test               # the kit's tests</code></pre>
+<p>Node 22+ is required: the plugin sandbox uses the <code>--permission</code> flag.</p>
+
+<h2 id="layout">3. Files and folders</h2>
+<pre><code>kit.js                  entry point: version check, seed example, start server, open browser
+kit/
+  version.js            KIT_VERSION, GIRAFE_VERSION (simulated), HOST_API
+  server.js             HTTP server, routes, CSP, host/origin checks
+  engine.js             runs a graph (order, streams, skips, flow socket)
+  core-nodes.js         Input, Image, For each, Yes / No, Prompt, Generate image, Collect
+  plugins.js            finds plugin folders, checks manifests, runs a firing in the sandbox
+  sandbox-child.js      the code running inside a plugin's process (builds ctx)
+  keys.js               the key bank (encryption, masked listing)
+  netguard.js           the only way out to the internet, and the watch on everything else
+  cache.js              saved answers and pictures
+  store.js              workspace paths, graphs, files
+  seed.js               the example graph on first start
+  ai/text.js            Anthropic / OpenAI / Gemini text calls, model lists
+  ai/gemini-image.js    Gemini image generation (ported from GIRAFE)
+web/                    the page: index.html, app.js, style.css, the two state videos
+workspace/
+  nodes/&lt;id&gt;/          plugin nodes (manifest.json + node.js); example-upper is the sample
+  graphs/               your test graphs (not in git)
+  .kit/                 files, keys.json, secret.key, cache.json (not in git)
+tools/                  the starters' scripts
+test/                   node --test suites
+docs.html               this document</code></pre>
+
+<h2 id="architecture">4. Architecture</h2>
+<svg viewBox="0 0 860 250" role="img" aria-label="Browser page talks to the local kit server; the server runs the engine, core nodes and sandboxed plugin processes; only the network guard reaches the internet.">
+  <rect x="10" y="20" width="200" height="90" rx="10" fill="#151821" stroke="#2a2f38"/>
+  <text x="110" y="52" fill="#e8ebf0" font-size="15" text-anchor="middle">Browser page</text>
+  <text x="110" y="74" fill="#9aa5b4" font-size="12" text-anchor="middle">canvas · panel · Keys</text>
+  <text x="110" y="94" fill="#f5d76e" font-size="11" text-anchor="middle">CSP: talks to the kit only</text>
+  <rect x="290" y="20" width="300" height="210" rx="10" fill="#151821" stroke="#3ee0b8"/>
+  <text x="440" y="46" fill="#e8ebf0" font-size="15" text-anchor="middle">Kit server · 127.0.0.1</text>
+  <rect x="310" y="62" width="120" height="34" rx="6" fill="#1c2027" stroke="#2a2f38"/><text x="370" y="84" fill="#cdd3dc" font-size="12" text-anchor="middle">engine</text>
+  <rect x="450" y="62" width="120" height="34" rx="6" fill="#1c2027" stroke="#2a2f38"/><text x="510" y="84" fill="#cdd3dc" font-size="12" text-anchor="middle">core nodes</text>
+  <rect x="310" y="108" width="120" height="34" rx="6" fill="#1c2027" stroke="#2a2f38"/><text x="370" y="130" fill="#cdd3dc" font-size="12" text-anchor="middle">key bank</text>
+  <rect x="450" y="108" width="120" height="34" rx="6" fill="#1c2027" stroke="#e86fa8"/><text x="510" y="130" fill="#cdd3dc" font-size="12" text-anchor="middle">network guard</text>
+  <rect x="310" y="154" width="260" height="34" rx="6" fill="#1c2027" stroke="#2a2f38"/><text x="440" y="176" fill="#cdd3dc" font-size="12" text-anchor="middle">workspace/ (graphs, files, keys, cache)</text>
+  <text x="440" y="214" fill="#6b7686" font-size="11" text-anchor="middle">diagnostics channels watch every outgoing request</text>
+  <rect x="660" y="20" width="190" height="80" rx="10" fill="#151821" stroke="#2a2f38"/>
+  <text x="755" y="52" fill="#e8ebf0" font-size="14" text-anchor="middle">AI services</text>
+  <text x="755" y="74" fill="#9aa5b4" font-size="11" text-anchor="middle">Anthropic · OpenAI · Gemini</text>
+  <rect x="660" y="140" width="190" height="90" rx="10" fill="#151821" stroke="#2a2f38" stroke-dasharray="5 4"/>
+  <text x="755" y="168" fill="#e8ebf0" font-size="14" text-anchor="middle">Plugin processes</text>
+  <text x="755" y="190" fill="#9aa5b4" font-size="11" text-anchor="middle">one per firing · own folder</text>
+  <text x="755" y="208" fill="#9aa5b4" font-size="11" text-anchor="middle">read-only · no env · no keys</text>
+  <path d="M210 65 H290" stroke="#7fb3ff" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M570 125 C620 125 610 60 660 60" stroke="#e86fa8" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <path d="M570 79 C620 79 610 185 660 185" stroke="#9aa5b4" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <text x="615" y="232" fill="#6b7686" font-size="11" text-anchor="middle">IPC (ctx calls)</text>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#9aa5b4"/></marker></defs>
+</svg>
+
+<h3 id="server">Server and routes</h3>
+<p><code>kit/server.js</code>, Node's <code>http</code> module. It listens on <code>127.0.0.1</code> only. Every request must carry <code>Host: localhost</code> or <code>127.0.0.1</code> (stops DNS-rebinding pages), and a write coming from another site's page (<code>Origin</code> header not this kit) is refused.</p>
+<table>
+  <tr><th>Route</th><th>Does</th></tr>
+  <tr><td><code>GET /api/info</code></td><td>Kit version, simulated GIRAFE version, host API, workspace path.</td></tr>
+  <tr><td><code>GET /api/kinds</code></td><td>Core node kinds and plugin nodes (with manifest problems).</td></tr>
+  <tr><td><code>GET/POST /api/graphs</code>, <code>GET/POST/DELETE /api/graphs/:id</code></td><td>List, create, read, save, delete test graphs (JSON files).</td></tr>
+  <tr><td><code>GET /api/keys</code>, <code>POST /api/keys</code>, <code>DELETE /api/keys/:id</code></td><td>Key bank: list (masked), add (the paste step), remove.</td></tr>
+  <tr><td><code>GET /api/network</code></td><td>The network log and counters.</td></tr>
+  <tr><td><code>POST /api/models</code></td><td>Models a key can use (asks its service, through the guard).</td></tr>
+  <tr><td><code>POST /api/files</code>, <code>GET /files/:key</code></td><td>Upload a picture (raw body, PNG/JPEG/WebP/GIF, 25 MB); serve a stored file.</td></tr>
+  <tr><td><code>POST /api/run</code>, <code>GET /api/runs/:id</code>, <code>POST /api/runs/:id/stop</code>, <code>POST /api/runs/:id/answer</code></td><td>Start a run (202 + id), poll its state, stop it, answer a Yes / No question.</td></tr>
+  <tr><td><code>GET /</code>, <code>/app.js</code>…</td><td>The page, with the CSP header.</td></tr>
+</table>
+
+<h3 id="engine">Run engine</h3>
+<p><code>kit/engine.js</code>. A run takes the graph, orders the nodes (a loop is refused), and runs them level by level. The rules are GIRAFE's:</p>
+<ul>
+  <li>Values travel as <strong>text</strong> or <strong>file references</strong> <code>{ imageUrl, key, mime, name }</code>.</li>
+  <li>Input sockets are lettered <strong>A, B, C…</strong> by the order the wires were drawn. Output sockets of a one-output node are one per wire and all carry the same output. Named outputs (Yes / No) each carry their own.</li>
+  <li>A node fed by a <strong>stream</strong> (For each, or anything after one, or a plugin that emits several packets) fires once per item. Other inputs keep their single value for every firing.</li>
+  <li><strong>Collect</strong> waits for everything and sends one JSON list.</li>
+  <li>A node whose wired inputs all stayed empty is <strong>skipped</strong>, and so is what follows.</li>
+  <li>The square <strong>flow socket</strong>: when wired, the node runs only if something reaches it.</li>
+  <li>An error stops that node and its branch only.</li>
+</ul>
+<p>The run state (<code>status</code>, per-node <code>status/note/outputs/firings/logs</code>, per-wire <code>count/state</code>, waiting questions) is held in memory and polled by the page every 350 ms. Runs are forgotten 30 minutes after they end. GIRAFE streams item by item instead of level by level; results are the same, only the order the lights change differs.</p>
+
+<h3 id="core">Core nodes</h3>
+<table>
+  <tr><th>Node</th><th>Behaviour</th></tr>
+  <tr><td>Input</td><td>Sends its typed value.</td></tr>
+  <tr><td>Image</td><td>Sends an uploaded picture as a file reference.</td></tr>
+  <tr><td>For each</td><td>Splits a JSON list (or lines) and sends each item; up to 100 by default, 1000 max.</td></tr>
+  <tr><td>Yes / No</td><td>Pauses the run with a question (<code>{{A}}</code> puts an input in it); the input goes out of the answered exit only.</td></tr>
+  <tr><td>Prompt</td><td>One AI call (Anthropic, OpenAI or Gemini). <code>{{A}}</code> places inputs, otherwise they are appended; pictures on inputs are sent to the model; today's date in the system prompt; saved answers.</td></tr>
+  <tr><td>Generate image</td><td>Gemini image generation, ported from GIRAFE's <code>gemini-image.js</code>: text to image, or image to image when pictures arrive (14 max); format, size, model; fallback to the legacy model when a model is unknown; saved pictures.</td></tr>
+  <tr><td>Collect</td><td>Gathers every packet into one list; pictures show as a grid.</td></tr>
+</table>
+
+<h3 id="plugins">Plugin nodes and sandbox</h3>
+<p>A plugin is <code>workspace/nodes/&lt;id&gt;/manifest.json</code> + <code>node.js</code> (full contract: <code>HOST_API.md</code>). <code>kit/plugins.js</code> checks the manifest (id = folder, version, <code>hostApi</code> equal to the kit's, the <code>girafe</code> minimum version, outputs, fields, capabilities) and greys out a node that doesn't pass.</p>
+<p>Every firing starts a new child process:</p>
+<pre><code>node --max-old-space-size=128 --permission \
+     --allow-fs-read=&lt;the node's folder&gt; --allow-fs-read=kit/sandbox-child.js \
+     kit/sandbox-child.js        (env: empty)</code></pre>
+<ul>
+  <li>It can read its own folder only, cannot write to disk, cannot start processes or worker threads.</li>
+  <li>It has <strong>no environment variables</strong>: no keys, no paths.</li>
+  <li>It is killed after 60 seconds, and dies alone if it exceeds 128 MB.</li>
+  <li>It talks to the kit only through <code>ctx</code>, whose calls are IPC messages handled by the host side in <code>plugins.js</code> (emit, progress, log, file read/write, each checked against the manifest's capabilities).</li>
+  <li>Not blocked yet: network access from a plugin (Node 22 can't restrict it). On GIRAFE it will be limited to the hosts the manifest declares.</li>
+</ul>
+
+<h3 id="page">The page</h3>
+<p><code>web/app.js</code> builds the canvas with plain DOM and SVG: nodes (220 px cards, GIRAFE's classes and colours), wires (curves coloured by source, green when delivered, grey dashes when dead), pointer-event dragging, wheel zoom, the panel (fields from the kind or the plugin manifest), the Yes / No dock, the Keys dialog. Graphs autosave half a second after a change; Ctrl+Z undoes structural changes.</p>
+
+<h2 id="keys">5. How keys are managed</h2>
+<p>The Prompt and Generate image nodes call outside services with the user's own API keys. The rule the code enforces:</p>
+<div class="note good"><strong>A key exists in plain text only twice:</strong> when it is pasted (from the page to the kit, on the same computer), and in the kit's memory for the duration of one call to <em>its own</em> service. It is never written in plain text, never listed, never logged, never given to a plugin, and never sent anywhere but its own service's address, in its login header.</div>
+
+<h3 id="key-life">A key's life</h3>
+<svg viewBox="0 0 860 200" role="img" aria-label="Paste, encrypt and save, listed masked, decrypted for one call, checked by the guard, sent to its own service, logged.">
+  <g font-size="12" text-anchor="middle">
+    <rect x="10" y="40" width="130" height="70" rx="8" fill="#151821" stroke="#7fb3ff"/><text x="75" y="68" fill="#e8ebf0">1 · Paste</text><text x="75" y="88" fill="#9aa5b4">page → kit (local)</text>
+    <rect x="160" y="40" width="130" height="70" rx="8" fill="#151821" stroke="#3ee0b8"/><text x="225" y="68" fill="#e8ebf0">2 · Encrypt, save</text><text x="225" y="88" fill="#9aa5b4">AES-256-GCM</text>
+    <rect x="310" y="40" width="130" height="70" rx="8" fill="#151821" stroke="#2a2f38"/><text x="375" y="68" fill="#e8ebf0">3 · Listed masked</text><text x="375" y="88" fill="#9aa5b4">no decryption</text>
+    <rect x="460" y="40" width="130" height="70" rx="8" fill="#151821" stroke="#f5d76e"/><text x="525" y="68" fill="#e8ebf0">4 · Decrypt</text><text x="525" y="88" fill="#9aa5b4">in memory, 1 call</text>
+    <rect x="610" y="40" width="110" height="70" rx="8" fill="#151821" stroke="#e86fa8"/><text x="665" y="68" fill="#e8ebf0">5 · Guard</text><text x="665" y="88" fill="#9aa5b4">address, header</text>
+    <rect x="740" y="40" width="110" height="70" rx="8" fill="#151821" stroke="#5fd97a"/><text x="795" y="68" fill="#e8ebf0">6 · Own service</text><text x="795" y="88" fill="#9aa5b4">logged</text>
+    <path d="M140 75 H160 M290 75 H310 M590 75 H610 M720 75 H740" stroke="#9aa5b4" stroke-width="2"/>
+    <path d="M375 110 V140 H525 V110" stroke="#2a2f38" stroke-width="2" fill="none"/><text x="450" y="160" fill="#6b7686">only when a node runs</text>
+    <text x="665" y="140" fill="#e05a5a">anything else: blocked, nothing sent</text>
+  </g>
+</svg>
+<ol>
+  <li><strong>Paste.</strong> The Keys dialog sends <code>{ label, service, value }</code> in one <code>POST /api/keys</code> to <code>localhost</code>. The page clears the field right after sending; nothing is kept in the page, nor in the browser's storage.</li>
+  <li><strong>Encrypt and save.</strong> <code>keys.add()</code> encrypts the value with AES-256-GCM (random 12-byte IV, authentication tag) and writes <code>workspace/.kit/keys.json</code> with file mode 600. At the same moment it saves a <strong>masked form</strong> (<code>AIza…5678</code>) and a <strong>fingerprint</strong> (first 12 hex of SHA-256), so the key never has to be decrypted to be shown. The service is guessed from the key's shape (<code>sk-ant-</code>, <code>AIza</code>, <code>sk-</code>) and can be changed.</li>
+  <li><strong>Listed masked.</strong> <code>GET /api/keys</code> returns id, label, service, masked form, fingerprint. <code>keys.list()</code> contains no call to decrypt.</li>
+  <li><strong>Decrypted for one call.</strong> Only <code>keys.use(id, service)</code> decrypts, and only the Prompt and Generate image nodes (and the model list) call it, right before their request. It also refuses a key of the wrong service (a Claude key in Generate image).</li>
+  <li><strong>Checked by the guard</strong> (below), then sent.</li>
+  <li><strong>Logged</strong>: time, purpose, key <em>label</em>, address, result. Never the key.</li>
+</ol>
+<p>The paste step reports back: the server marks the network log before saving and counts after, and the dialog shows <em>"Key saved, nothing left this computer"</em> with the count (0) and the fingerprint. If anything had gone out meanwhile, the box turns red and points to the log.</p>
+
+<h3 id="key-store">Storage and encryption</h3>
+<table>
+  <tr><th>File</th><th>Holds</th></tr>
+  <tr><td><code>workspace/.kit/keys.json</code></td><td><code>{ keys: [{ id, label, service, enc, masked, fingerprint, createdAt }] }</code>; <code>enc</code> = <code>iv.tag.ciphertext</code> in base64. Mode 600.</td></tr>
+  <tr><td><code>workspace/.kit/secret.key</code></td><td>32 random bytes (base64), created on first use. Mode 600.</td></tr>
+</table>
+<p>Both are in <code>.gitignore</code>. Deleting a key removes its entry. To start over, delete <code>workspace/.kit/</code>.</p>
+<div class="note">The secret sits next to the keys, on the same computer: the encryption protects against <code>keys.json</code> leaking on its own (copied, attached, pushed by mistake). It does not protect against someone who can read the whole folder as you. That is the same trust you give any app that remembers a password on your computer.</div>
+
+<h3 id="key-guard">The network guard</h3>
+<p><code>kit/netguard.js</code>. <strong>Every</strong> request the kit sends to the internet goes through <code>netguard.send(url, init, { service, key, keyLabel, purpose })</code>; the kit code has no other <code>fetch</code>. When a request carries a key, it is sent only if all of these hold, otherwise it is refused before leaving and logged as <em>blocked</em>:</p>
+<table>
+  <tr><th>Check</th><th>Rule</th></tr>
+  <tr><td>Address</td><td>The host is the key's own service: <code>api.anthropic.com</code>, <code>api.openai.com</code> or <code>generativelanguage.googleapis.com</code> (<code>OFFICIAL</code> in the code).</td></tr>
+  <tr><td>Encrypted connection</td><td><code>https</code> for the official hosts.</td></tr>
+  <tr><td>Key in the login header only</td><td><code>x-api-key</code> (Anthropic), <code>authorization</code> (OpenAI), <code>x-goog-api-key</code> (Gemini). A key found in the address, in the body or in any other header is blocked.</td></tr>
+</table>
+<p>Test runs point the services at a fake local server with <code>KIT_ANTHROPIC_URL</code>, <code>KIT_OPENAI_URL</code>, <code>KIT_GEMINI_URL</code>; that address is then allowed for that service, and shown as allowed in the Network panel.</p>
+
+<h3 id="key-watch">The watch and the log</h3>
+<p>The guard only covers requests made through it. To catch anything else, the kit subscribes to Node's <code>diagnostics_channel</code> events for <strong>every</strong> outgoing request of its process: <code>undici:request:create</code> (all <code>fetch</code> calls) and <code>http.client.request.start</code> (the <code>http</code>/<code>https</code> modules). A request that wasn't approved by the guard just before is logged as <em>unexpected</em>.</p>
+<p><strong>🔑 Keys › Network</strong> shows: requests sent, how many carried a key, blocked, unexpected, the allowed addresses, and the last 100 entries. Healthy: blocked 0, unexpected 0.</p>
+
+<h3 id="key-page">The page lock (CSP)</h3>
+<p>Every page response carries:</p>
+<pre><code>Content-Security-Policy: default-src 'self'; connect-src 'self'; img-src 'self' blob: data:;
+  media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none';
+  frame-ancestors 'none'; base-uri 'none'; form-action 'self'
+Referrer-Policy: no-referrer</code></pre>
+<p>The browser enforces it: the page can only load scripts from the kit and only send requests to the kit. Even if the page's code were changed to send the pasted key elsewhere, the browser would refuse. The kit uses no CDN, no outside font or script.</p>
+
+<h3 id="key-limits">What it doesn't protect</h3>
+<ul>
+  <li><strong>The browser itself.</strong> An extension allowed on all sites can read what you type in any page, this one included. Paste keys in a browser profile without such extensions if in doubt.</li>
+  <li><strong>Other programs</strong> on the computer, and anyone with access to your account.</li>
+  <li><strong>The service itself</strong>: the key has to reach its own service to work. Use keys with spending limits where the service offers them.</li>
+  <li><strong>Plugin network access</strong> is not yet restricted (plugins have no keys, so they can't leak one, but they can reach the internet).</li>
+</ul>
+
+<h3 id="key-tests">How it's tested</h3>
+<p><code>test/ai.test.js</code>, against fake Anthropic / OpenAI / Gemini servers (no real key, no cost):</p>
+<ul>
+  <li>keys.json contains no key in plain; the list shows masked forms only;</li>
+  <li>listing still works with a wrong secret (proof it never decrypts);</li>
+  <li>pasting a key makes no internet request;</li>
+  <li>a key aimed at another address, put in the address, in the body or in a wrong header is blocked, and the fake server receives nothing;</li>
+  <li>a <code>fetch</code> that bypasses the guard is caught as unexpected;</li>
+  <li>the log never contains a key;</li>
+  <li>each service receives its key in its own login header only.</li>
+</ul>
+
+<h2 id="cache">6. Saved answers (cache)</h2>
+<p><code>kit/cache.js</code>, <code>workspace/.kit/cache.json</code>, the newest 500 entries. The key is a SHA-256 of what defines the request:</p>
+<ul>
+  <li>Prompt: service, model, final text, picture file keys;</li>
+  <li>Generate image: model, format, size, final text, reference picture keys (the picture file itself stays in <code>.kit/files/</code>).</li>
+</ul>
+<p>Same request = the saved result, no call, no cost (the node says so). "Always ask again" / "Always make a new picture" skip it. Keys are not part of the cache key and never stored in it.</p>
+
+<h2 id="security">7. Security summary</h2>
+<table>
+  <tr><th>Threat</th><th>Answer</th></tr>
+  <tr><td>Another computer reaching the kit</td><td>Listens on 127.0.0.1 only.</td></tr>
+  <tr><td>A website driving the kit (DNS rebinding, CSRF)</td><td>Host header must be localhost; writes with a foreign Origin refused.</td></tr>
+  <tr><td>A plugin reading files, keys, environment</td><td>Permission model (own folder, read only), empty environment, no keys in ctx.</td></tr>
+  <tr><td>A runaway plugin</td><td>128 MB, 60 s, one process per firing.</td></tr>
+  <tr><td>A key leaving for the wrong place</td><td>Network guard, watch, log, CSP (section 5).</td></tr>
+  <tr><td>A tampered Node download</td><td>SHA-256 checked against nodejs.org's published list.</td></tr>
+  <tr><td>Path tricks in file and graph names</td><td>Strict patterns for ids and file names before any path is built.</td></tr>
+</table>
+
+<h2 id="testing">8. Tests</h2>
+<pre><code>npm test     # node --test test/*.test.js</code></pre>
+<p><code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
+
+<h2 id="versions">9. Versions and releases</h2>
+<p>Three numbers, in <code>kit/version.js</code>:</p>
+<table>
+  <tr><th>Number</th><th>Meaning</th></tr>
+  <tr><td><code>KIT_VERSION</code></td><td>The kit itself.</td></tr>
+  <tr><td><code>GIRAFE_VERSION</code></td><td>The GIRAFE release the kit simulates. A manifest's <code>"girafe": "&gt;=x.y.z"</code> is checked against it.</td></tr>
+  <tr><td><code>HOST_API</code></td><td>The plugin contract. A manifest's <code>hostApi</code> must equal it. Additions keep the number; a breaking change bumps it.</td></tr>
+</table>
+<p>Branches: <code>main</code> is development, <code>release</code> is what users download. Shipping a version: bump <code>KIT_VERSION</code> and <code>package.json</code>, add the <code>CHANGELOG.md</code> entry, then move <code>release</code> to that commit and tag it <code>vX.Y.Z</code>.</p>
+
+<h2 id="maintain">10. Keeping this document current</h2>
+<p>Any change to the kit's architecture, routes, engine rules, sandbox, key handling or network guard updates this file in the same commit. Plugin-facing changes also update <code>HOST_API.md</code>; user-facing ones <code>CHANGELOG.md</code>. Update the date at the top.</p>
+<p class="meta">Reading this file: GitHub shows HTML files as source code. Open it from your copy of the kit (double-click <code>docs.html</code>), or in the running kit at <code>http://localhost:4747/docs</code> (📖 Docs at the top).</p>
+
+</main>
+</div>
+</body>
+</html>

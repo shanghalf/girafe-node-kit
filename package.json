@@ -10,5 +10,5 @@
     "start": "node kit.js",
     "test": "node --test test/*.test.js"
   },
-  "files": ["kit.js", "kit/", "web/", "workspace/nodes/", "HOST_API.md", "AI-INSTRUCTIONS.md", "CHANGELOG.md"]
+  "files": ["kit.js", "kit/", "web/", "workspace/nodes/", "HOST_API.md", "AI-INSTRUCTIONS.md", "CHANGELOG.md", "docs.html", "tools/"]
 }

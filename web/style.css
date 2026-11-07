@@ -156,3 +156,5 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .net-row.bad { color: var(--red); }
 .net-time { color: var(--dim); }
 .net-host, .net-res { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-link { background: var(--bg3); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; color: var(--text); text-decoration: none; }
+.btn-link:hover { border-color: #3a4254; }

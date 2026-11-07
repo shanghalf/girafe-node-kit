@@ -28,7 +28,7 @@ Developers: `node kit.js` does the same with your own Node 22+.
 4. Your node appears under **Your nodes**. Wire it, run, read its note and log in the panel.
 
 Working with an AI assistant? Point it at `AI-INSTRUCTIONS.md`; `HOST_API.md` is the full
-contract.
+contract. How the kit works inside, keys included: `docs.html` (open it, or 📖 Docs in the kit).
 
 ## Keys (Prompt and Generate image)
 
