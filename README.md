@@ -32,7 +32,7 @@ contract. How the kit works inside, keys included: `docs.html` (open it, or 📖
 
 ## Keep your nodes on GitHub
 
-**🐙 GitHub** at the top saves your nodes to a private repo of yours: every save is a version you
+**GitHub** at the top saves your nodes to a private repo of yours: every save is a version you
 can go back to, and your other computer can get them. You make an empty private repo and a token
 for that repo only (the kit shows you how), and paste the token once in **🔑 Keys**. A node with
 changes not saved pulses under **Your nodes**; right-click it to save, see your changes, get

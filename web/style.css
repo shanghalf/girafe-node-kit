@@ -212,3 +212,4 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .run-earlier { border-top: 1px dashed var(--line); padding-top: 8px; opacity: .85; }
 .thumbs:has(> .model-card) { grid-template-columns: 1fr; gap: 8px; }
 .model-card > div { min-width: 0; overflow-wrap: anywhere; }
+.gh-mark { width: 1em; height: 1em; vertical-align: -0.125em; flex: none; }

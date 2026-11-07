@@ -227,7 +227,7 @@ function disconnect() { writeSettings(null); remoteCache = null; return { connec
 
 function need() {
   const s = readSettings();
-  if (!s) throw new GitHubError('Use GitHub first (🐙 GitHub at the top).', 'setup');
+  if (!s) throw new GitHubError('Use GitHub first (GitHub at the top).', 'setup');
   return s;
 }
 const checkId = (id) => { if (!store.ID_RE.test(String(id || ''))) throw new GitHubError('Bad node id.', 'input'); return id; };

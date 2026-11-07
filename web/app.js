@@ -1006,13 +1006,13 @@ async function loadGitHub({ remote = false } = {}) {
   try { S.gh = await api('/api/github' + (remote ? '?remote=1' : '')); } catch { return; }
   const btn = $('#ghBtn');
   const n = S.gh.connected ? Object.values(S.gh.nodes).filter((x) => ['changed', 'behind', 'conflict', 'deleted'].includes(x.state)).length : 0;
-  btn.textContent = S.gh.connected ? `🐙 ${S.gh.repo}${n ? ' · ' + n : ''}` : '🐙 GitHub';
+  btn.replaceChildren(ghMark(), ' ' + (S.gh.connected ? `${S.gh.repo}${n ? ' · ' + n : ''}` : 'GitHub'));
   btn.classList.toggle('gh-pending', n > 0);
   const sig = JSON.stringify(S.gh);
   if (sig !== ghLast) { ghLast = sig; renderPalette(); }
 }
 function ghMenuItems(id, name) {
-  if (!S.gh?.connected) return [['🐙 Keep my nodes on GitHub…', () => openGitHub()]];
+  if (!S.gh?.connected) return [['Keep my nodes on GitHub…', () => openGitHub()]];
   const g = ghNode(id) || { state: 'new' };
   const items = [];
   if (['changed', 'new', 'deleted'].includes(g.state)) items.push(['💾 Save to GitHub…', () => ghSaveDialog(id, name)]);
@@ -1033,16 +1033,29 @@ function ghRemoteOnly() {
 function ghInvite() {
   let off = false; try { off = localStorage.getItem('kit.gh.later') === '1'; } catch {}
   if (S.gh?.connected || off || !S.pluginList.length || !S.gh) return null;
-  return el('div', { class: 'gh-invite' }, el('b', { text: '🐙 Keep your nodes safe' }),
+  return el('div', { class: 'gh-invite' }, el('b', {}, ghMark(), ' Keep your nodes safe'),
     el('div', { class: 'muted', text: 'Save them to a private GitHub repo of yours: history, and the same nodes on every computer.' }),
     el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Set it up', onclick: () => openGitHub() }),
       el('button', { text: 'Not now', onclick: () => { try { localStorage.setItem('kit.gh.later', '1'); } catch {} renderPalette(); } })));
 }
 const ghErr = (box, e) => box.replaceChildren(el('div', { class: 'problems', text: e.message }));
+// GitHub's own mark (Octicons "mark-github", MIT), drawn in the text colour.
+const GH_PATH = 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z';
+function ghMark() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', 'gh-mark');
+  const p = document.createElementNS(NS, 'path'); p.setAttribute('d', GH_PATH); p.setAttribute('fill', 'currentColor');
+  svg.append(p);
+  return svg;
+}
+// A title with the GitHub mark in front.
+const ghTitle = (text) => [ghMark(), ' ' + text];
+
 function dialog(title, ...body) {
   const ov = $('#keysDialog');
   const close = () => { ov.hidden = true; };
-  ov.replaceChildren(el('div', { class: 'dialog dialog-wide' }, el('div', { class: 'dialog-hd' }, el('h3', { text: title }), el('button', { class: 'link', text: '✕', title: 'Close', onclick: close })), ...body));
+  ov.replaceChildren(el('div', { class: 'dialog dialog-wide' }, el('div', { class: 'dialog-hd' }, Array.isArray(title) ? el('h3', {}, ...title) : el('h3', { text: title }), el('button', { class: 'link', text: '✕', title: 'Close', onclick: close })), ...body));
   ov.hidden = false;
   return close;
 }
@@ -1063,7 +1076,7 @@ function openGitHub() {
       if (/public/.test(e.message)) out.append(el('button', { class: 'danger', text: 'Use this public repo anyway', onclick: () => go(true) }));
     }
   };
-  dialog('🐙 Keep your nodes on GitHub',
+  dialog(ghTitle('Keep your nodes on GitHub'),
     el('p', { class: 'desc', text: 'Your nodes (workspace/nodes) are saved to a GitHub repo of yours: every save is a version you can go back to, and another computer can get them. Only the node folders go there: never your keys, the signing key, or your test graphs.' }),
     el('div', { class: 'box' }, el('div', { class: 'box-title', text: '1 · Make an empty private repo' }),
       el('div', { class: 'caps', text: 'On GitHub: New repository → a name (e.g. my-girafe-nodes) → Private → Create. Leave it empty.' }),
@@ -1090,7 +1103,7 @@ function ghOverview() {
         el('button', { text: '⋯', title: 'Actions', onclick: (ev) => showMenu(ev.clientX, ev.clientY, ghMenuItems(id, id), id) }))) : [el('div', { class: 'muted', text: 'No node yet.' })]));
   };
   draw();
-  const close = dialog('🐙 GitHub',
+  const close = dialog(ghTitle('GitHub'),
     el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Connected' }),
       el('div', { class: 'caps' }, el('a', { href: g.url, target: '_blank', rel: 'noopener', text: `${g.owner}/${g.repo}` }), ` · branch ${g.branch} · ${g.private ? 'private' : 'PUBLIC'}`),
       g.error ? el('div', { class: 'problems', text: g.error }) : el('div', { class: 'muted', text: g.checkedAt ? 'Checked with GitHub at ' + g.checkedAt.slice(11, 16) : 'Not checked with GitHub yet' })),
