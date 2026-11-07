@@ -1,5 +1,5 @@
 // The local key bank: API keys for the core nodes that call an outside service
-// (Prompt, Generate image). A key is in plain text only twice: when you paste it (from the
+// (Prompt, Generate image), and the GitHub token that saves your nodes to your repo. A key is in plain text only twice: when you paste it (from the
 // page to this kit, on your own computer) and in memory for a call to its own service. Stored in workspace/.kit/keys.json, encrypted with AES-256-GCM
 // under a random key kept next to it (workspace/.kit/secret.key). The browser only ever sees
 // a masked form; plugin nodes never see keys at all.
@@ -16,6 +16,7 @@ const SERVICES = {
   anthropic: { label: 'Anthropic (Claude)', get: 'https://console.anthropic.com/settings/keys' },
   openai: { label: 'OpenAI', get: 'https://platform.openai.com/api-keys' },
   gemini: { label: 'Google Gemini', get: 'https://aistudio.google.com/apikey' },
+  github: { label: 'GitHub (your nodes repo)', get: 'https://github.com/settings/personal-access-tokens/new' },
   other: { label: 'Other', get: null },
   // Not pasted: the token a GIRAFE account gives this computer when you connect the kit.
   girafe: { label: 'GIRAFE account link', get: null, internal: true },
@@ -52,6 +53,7 @@ function guessService(value) {
   if (/^sk-ant-/.test(value)) return 'anthropic';
   if (/^AIza/.test(value)) return 'gemini';
   if (/^sk-/.test(value)) return 'openai';
+  if (/^(github_pat_|gh[pousr]_)/.test(value)) return 'github';
   return 'other';
 }
 

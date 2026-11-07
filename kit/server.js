@@ -14,6 +14,7 @@ const gemini = require('./ai/gemini-image');
 const netguard = require('./netguard');
 const pkgs = require('./package');
 const link = require('./girafe-link');
+const github = require('./github');
 
 const WEB = path.join(__dirname, '..', 'web');
 const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
@@ -110,6 +111,24 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === '/api/girafe/send') {
     const { id } = await readJson(req);
     try { return send(res, 200, await link.send(String(id || ''))); } catch (e) { return send(res, e.needsLink ? 409 : 400, { error: e.message, needsLink: !!e.needsLink }); }
+  }
+
+  // Your nodes on GitHub (kit/github.js). Errors say what to do; a secret found stops a save.
+  if (p.startsWith('/api/github')) {
+    const fail = (e) => send(res, e instanceof netguard.Blocked ? 403 : e.status === 401 ? 401 : ['behind', 'conflict', 'race', 'public', 'secret'].includes(e.code) ? 409 : e.code === 'network' || e.code === 'github' || e.code === 'rate' ? 502 : 400, { error: e.message, code: e.code || null, hits: e.hits || undefined });
+    try {
+      if (req.method === 'GET' && p === '/api/github') return send(res, 200, await github.status({ remote: url.searchParams.get('remote') === '1' }));
+      if (req.method === 'GET' && p === '/api/github/history') return send(res, 200, await github.history({ id: url.searchParams.get('id') }));
+      if (req.method === 'GET' && p === '/api/github/diff') return send(res, 200, await github.diff({ id: url.searchParams.get('id') }));
+      if (req.method === 'POST') {
+        const body = await readJson(req);
+        if (p === '/api/github/connect') return send(res, 200, await github.connect(body));
+        if (p === '/api/github/disconnect') return send(res, 200, github.disconnect());
+        if (p === '/api/github/save') return send(res, 200, await github.save(body));
+        if (p === '/api/github/update') return send(res, 200, await github.update(body));
+        if (p === '/api/github/restore') return send(res, 200, await github.restore(body));
+      }
+    } catch (e) { return fail(e); }
   }
 
   if (req.method === 'POST' && p === '/api/files') {

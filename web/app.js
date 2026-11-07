@@ -46,7 +46,14 @@ function renderPalette() {
   const mk = (k) => el('button', { class: 'pm-palette-btn' + (k.problems?.length ? ' bad' : ''), style: { '--pm-kind-color': k.color }, title: k.problems?.length ? k.problems.join('\n') : k.description, onclick: () => addNodeAtCenter(k.type) },
     kindLabel(k), k.problems?.length ? el('span', { class: 'badge', text: '⚠' }) : null);
   $('#palCore').replaceChildren(...S.coreList.map(mk));
-  $('#palPlugins').replaceChildren(...(S.pluginList.length ? S.pluginList.map(mk) : [el('div', { class: 'muted', text: 'None yet.' })]));
+  const mkPlugin = (k) => {
+    const b = mk(k);
+    const g = ghNode(k.id);
+    if (g) { b.classList.add('gh-' + g.state); b.append(el('span', { class: 'gh-mark', title: GH_STATE[g.state]?.tip || '', text: GH_STATE[g.state]?.mark || '' })); }
+    b.addEventListener('contextmenu', (ev) => { ev.preventDefault(); showMenu(ev.clientX, ev.clientY, ghMenuItems(k.id, k.name), k.name); });
+    return b;
+  };
+  $('#palPlugins').replaceChildren(...(S.pluginList.length ? S.pluginList.map(mkPlugin) : [el('div', { class: 'muted', text: 'None yet.' })]), ...ghRemoteOnly(), ...[ghInvite()].filter(Boolean));
 }
 
 // ---------- graphs ----------
@@ -198,7 +205,7 @@ function renderNode(n) {
     status !== 'idle' ? el('span', { class: `pm-node-status pm-node-status-${status}`, text: GLYPH[status] || '' }) : null);
   e.append(videoFor(n, st).box, hd, el('div', { class: 'pm-node-bd' }, ...nodeBody(n, k, st)), renderPorts(n, k));
   e.addEventListener('pointerdown', (ev) => { if (ev.button === 0 && !ev.target.closest('.pm-sock, button, label, input')) { S.sel = { type: 'node', id: n.id }; markSel(); renderPanel(); } });
-  e.addEventListener('contextmenu', (ev) => { ev.preventDefault(); S.sel = { type: 'node', id: n.id }; markSel(); renderPanel(); showMenu(ev.clientX, ev.clientY, [[ '🗑 Delete', deleteSelected ], [ n.disabled ? '⏻ Turn on' : '⏽ Turn off', () => { n.disabled = !n.disabled; changed(); } ], [ '⧉ Duplicate', () => duplicate(n) ]], k.name); });
+  e.addEventListener('contextmenu', (ev) => { ev.preventDefault(); S.sel = { type: 'node', id: n.id }; markSel(); renderPanel(); showMenu(ev.clientX, ev.clientY, [[ '🗑 Delete', deleteSelected ], [ n.disabled ? '⏻ Turn on' : '⏽ Turn off', () => { n.disabled = !n.disabled; changed(); } ], [ '⧉ Duplicate', () => duplicate(n) ], ...(k.id && String(n.type).startsWith('plugin:') ? [null, ...ghMenuItems(k.id, k.name)] : [])], k.name); });
   return e;
 }
 function outLabel(n, p) { if (n.type === 'ask') return p === 'yes' ? (n.yesLabel || 'Yes') : (n.noLabel || 'No'); return p; }
@@ -470,7 +477,7 @@ function initCanvas() {
 }
 function showMenu(x, y, items, title) {
   const m = $('#menu');
-  m.replaceChildren(...(title ? [el('div', { class: 'mt', text: title })] : []), ...items.map(([label, fn]) => el('button', { text: label, onclick: () => { hideMenu(); fn(); } })));
+  m.replaceChildren(...(title ? [el('div', { class: 'mt', text: title })] : []), ...items.filter((x) => x !== false && x !== undefined).map((it) => it === null ? el('div', { class: 'msep' }) : el('button', { text: it[0], onclick: () => { hideMenu(); it[1](); } })));
   m.hidden = false;
   const r = m.getBoundingClientRect();
   m.style.left = Math.min(x, innerWidth - r.width - 8) + 'px';
@@ -646,7 +653,7 @@ function openKeys() {
     const label = el('input', { placeholder: 'Name, e.g. "My Gemini key"' });
     const service = el('select', {}, ...Object.entries(S.services).filter(([, x]) => !x.internal).map(([id, s]) => el('option', { value: id, text: s.label })));
     const value = el('input', { type: 'password', placeholder: 'Paste the key', autocomplete: 'off' });
-    value.addEventListener('input', () => { const v = value.value.trim(); service.value = /^sk-ant-/.test(v) ? 'anthropic' : /^AIza/.test(v) ? 'gemini' : /^sk-/.test(v) ? 'openai' : service.value; });
+    value.addEventListener('input', () => { const v = value.value.trim(); service.value = /^sk-ant-/.test(v) ? 'anthropic' : /^AIza/.test(v) ? 'gemini' : /^sk-/.test(v) ? 'openai' : /^(github_pat_|gh[pousr]_)/.test(v) ? 'github' : service.value; });
     const err = el('div', { class: 'problems' });
     const add = async () => {
       const v = value.value;
@@ -655,7 +662,7 @@ function openKeys() {
         const r = await api('/api/keys', { method: 'POST', body: JSON.stringify({ label: label.value, service: service.value, value: v }) });
         await loadKeys();
         S.lastPaste = { label: r.key.label, during: r.during, fingerprint: r.key.fingerprint };
-        draw(); renderPanel();
+        draw(); renderPanel(); if (r.key.service === 'github') { loadGitHub(); if (S.ghReturn) { S.ghReturn = false; S.lastPaste = null; return openGitHub(); } }
       } catch (e) { err.textContent = e.message; value.value = v; }
     };
     ov.replaceChildren(el('div', { class: 'dialog dialog-wide' },
@@ -830,8 +837,187 @@ async function deleteGraph() {
   await loadKeys();
   $('#linkBtn').addEventListener('click', () => openLink());
   await loadLink();
+  $('#ghBtn').addEventListener('click', () => openGitHub());
+  await loadGitHub();
+  setInterval(() => loadGitHub(), 5000);
+  setInterval(() => { if (S.gh?.connected && !document.hidden) loadGitHub({ remote: true }); }, 120000);
+  if (S.gh?.connected) loadGitHub({ remote: true });
   $('#reloadKinds').addEventListener('click', () => loadKinds().then(render));
   window.addEventListener('focus', () => loadKinds().then(render));
   const { graphs } = await api('/api/graphs');
   if (!graphs.length) await newGraph(); else await loadGraphList();
 })();
+
+
+// ---------- your nodes on GitHub (kit/github.js) ----------
+// The kit talks to GitHub's API itself (no git program): a token you paste in 🔑 Keys, sent to
+// api.github.com only, through the network guard. Only the node folders are ever uploaded.
+const GH_STATE = {
+  clean: { mark: '', tip: 'Saved on GitHub' },
+  changed: { mark: '●', tip: 'Changed here since it was saved on GitHub' },
+  new: { mark: '＋', tip: 'Not on GitHub yet' },
+  behind: { mark: '⬇', tip: 'GitHub has a newer version' },
+  conflict: { mark: '⚠', tip: 'Changed both here and on GitHub' },
+  deleted: { mark: '✕', tip: 'Removed from GitHub, still here' },
+  remote: { mark: '☁', tip: 'Only on GitHub' },
+  error: { mark: '⚠', tip: 'Can\'t be read' },
+};
+S.gh = null;
+const ghNode = (id) => (S.gh?.connected ? S.gh.nodes?.[id] || null : null);
+let ghLast = '';
+async function loadGitHub({ remote = false } = {}) {
+  try { S.gh = await api('/api/github' + (remote ? '?remote=1' : '')); } catch { return; }
+  const btn = $('#ghBtn');
+  const n = S.gh.connected ? Object.values(S.gh.nodes).filter((x) => ['changed', 'behind', 'conflict', 'deleted'].includes(x.state)).length : 0;
+  btn.textContent = S.gh.connected ? `🐙 ${S.gh.repo}${n ? ' · ' + n : ''}` : '🐙 GitHub';
+  btn.classList.toggle('gh-pending', n > 0);
+  const sig = JSON.stringify(S.gh);
+  if (sig !== ghLast) { ghLast = sig; renderPalette(); }
+}
+function ghMenuItems(id, name) {
+  if (!S.gh?.connected) return [['🐙 Keep my nodes on GitHub…', () => openGitHub()]];
+  const g = ghNode(id) || { state: 'new' };
+  const items = [];
+  if (['changed', 'new', 'deleted'].includes(g.state)) items.push(['💾 Save to GitHub…', () => ghSaveDialog(id, name)]);
+  if (g.state === 'conflict') items.push(['💾 Keep mine (save over GitHub)…', () => ghSaveDialog(id, name, { mine: true })]);
+  if (['behind', 'conflict', 'remote'].includes(g.state)) items.push([g.state === 'remote' ? '⬇ Get it from GitHub' : '⬇ Take GitHub\'s version', () => ghTake(id, name)]);
+  if (['changed', 'conflict', 'new', 'deleted'].includes(g.state) && g.state !== 'new') items.push(['🔍 See my changes', () => ghDiff(id, name)]);
+  if (g.state === 'changed') items.push(['↩ Undo my changes', () => ghTake(id, name, { undo: true })]);
+  if (g.state !== 'new') items.push(['🕘 History…', () => ghHistory(id, name)]);
+  items.push(['🔄 Check GitHub now', () => loadGitHub({ remote: true })]);
+  return items;
+}
+function ghRemoteOnly() {
+  if (!S.gh?.connected) return [];
+  return Object.entries(S.gh.nodes).filter(([, g]) => g.state === 'remote').map(([id]) =>
+    el('button', { class: 'pm-palette-btn gh-remote', title: 'Only on GitHub: right-click to get it', onclick: () => ghTake(id, id), oncontextmenu: (ev) => { ev.preventDefault(); showMenu(ev.clientX, ev.clientY, ghMenuItems(id, id), id); } },
+      id, el('span', { class: 'gh-mark', text: '☁' })));
+}
+function ghInvite() {
+  let off = false; try { off = localStorage.getItem('kit.gh.later') === '1'; } catch {}
+  if (S.gh?.connected || off || !S.pluginList.length || !S.gh) return null;
+  return el('div', { class: 'gh-invite' }, el('b', { text: '🐙 Keep your nodes safe' }),
+    el('div', { class: 'muted', text: 'Save them to a private GitHub repo of yours: history, and the same nodes on every computer.' }),
+    el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Set it up', onclick: () => openGitHub() }),
+      el('button', { text: 'Not now', onclick: () => { try { localStorage.setItem('kit.gh.later', '1'); } catch {} renderPalette(); } })));
+}
+const ghErr = (box, e) => box.replaceChildren(el('div', { class: 'problems', text: e.message }));
+function dialog(title, ...body) {
+  const ov = $('#keysDialog');
+  const close = () => { ov.hidden = true; };
+  ov.replaceChildren(el('div', { class: 'dialog dialog-wide' }, el('div', { class: 'dialog-hd' }, el('h3', { text: title }), el('button', { class: 'link', text: '✕', title: 'Close', onclick: close })), ...body));
+  ov.hidden = false;
+  return close;
+}
+function openGitHub() {
+  if (S.gh?.connected) return ghOverview();
+  const tokens = S.keys.filter((k) => k.service === 'github');
+  const repo = el('input', { placeholder: 'your-name/my-girafe-nodes', value: S.ghRepoDraft || '' });
+  repo.addEventListener('input', () => { S.ghRepoDraft = repo.value; });
+  const keySel = el('select', {}, ...(tokens.length ? tokens.map((k) => el('option', { value: k.id, text: `${k.label} · ${k.masked}` })) : [el('option', { value: '', text: '- no GitHub token yet -' })]));
+  const out = el('div');
+  const go = async (allowPublic = false) => {
+    out.replaceChildren(el('div', { class: 'muted', text: 'Checking the repo on GitHub…' }));
+    try {
+      S.gh = await api('/api/github/connect', { method: 'POST', body: JSON.stringify({ keyId: keySel.value, repo: repo.value, allowPublic }) });
+      await loadGitHub(); renderPalette(); ghOverview();
+    } catch (e) {
+      ghErr(out, e);
+      if (/public/.test(e.message)) out.append(el('button', { class: 'danger', text: 'Use this public repo anyway', onclick: () => go(true) }));
+    }
+  };
+  dialog('🐙 Keep your nodes on GitHub',
+    el('p', { class: 'desc', text: 'Your nodes (workspace/nodes) are saved to a GitHub repo of yours: every save is a version you can go back to, and another computer can get them. Only the node folders go there: never your keys, the signing key, or your test graphs.' }),
+    el('div', { class: 'box' }, el('div', { class: 'box-title', text: '1 · Make an empty private repo' }),
+      el('div', { class: 'caps', text: 'On GitHub: New repository → a name (e.g. my-girafe-nodes) → Private → Create. Leave it empty.' }),
+      el('div', { class: 'row' }, el('a', { href: 'https://github.com/new', target: '_blank', rel: 'noopener', text: 'Open github.com/new' }))),
+    el('div', { class: 'box' }, el('div', { class: 'box-title', text: '2 · Make a token for that repo only' }),
+      el('div', { class: 'caps', text: 'Fine-grained token → Repository access: Only select repositories → your new repo → Permissions: Contents: Read and write. Copy it, then add it in 🔑 Keys (it is recognised as GitHub).' }),
+      el('div', { class: 'row' }, el('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener', text: 'Make the token' }), el('button', { text: '🔑 Paste it in Keys…', onclick: () => { S.ghReturn = true; openKeys(); } }))),
+    el('div', { class: 'box' }, el('div', { class: 'box-title', text: '3 · Connect' }),
+      el('div', { class: 'field' }, el('label', { text: 'Repo (owner/name or its address)' }), repo),
+      el('div', { class: 'field' }, el('label', { text: 'Token' }), keySel),
+      el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Connect', disabled: !tokens.length, onclick: () => go() }),
+        el('button', { class: 'link', text: 'Refresh the token list', onclick: async () => { await loadKeys(); openGitHub(); } })),
+      out),
+    el('div', { class: 'muted', text: 'The token is stored like your other keys (encrypted on this computer) and only ever sent to api.github.com - see 🔑 Keys › Network.' }));
+}
+function ghOverview() {
+  const g = S.gh;
+  const list = el('div', { class: 'box' });
+  const draw = () => {
+    const rows = Object.entries(S.gh.nodes || {}).sort(([a], [b]) => a.localeCompare(b));
+    list.replaceChildren(el('div', { class: 'box-title', text: 'Your nodes' }),
+      ...(rows.length ? rows.map(([id, n]) => el('div', { class: 'key-row gh-row gh-' + n.state },
+        el('div', {}, el('b', { text: id }), el('div', { class: 'muted', text: `${GH_STATE[n.state]?.tip || n.state}${n.savedAt ? ' · last saved or fetched ' + n.savedAt.slice(0, 16).replace('T', ' ') : ''}` })),
+        el('button', { text: '⋯', title: 'Actions', onclick: (ev) => showMenu(ev.clientX, ev.clientY, ghMenuItems(id, id), id) }))) : [el('div', { class: 'muted', text: 'No node yet.' })]));
+  };
+  draw();
+  const close = dialog('🐙 GitHub',
+    el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Connected' }),
+      el('div', { class: 'caps' }, el('a', { href: g.url, target: '_blank', rel: 'noopener', text: `${g.owner}/${g.repo}` }), ` · branch ${g.branch} · ${g.private ? 'private' : 'PUBLIC'}`),
+      g.error ? el('div', { class: 'problems', text: g.error }) : el('div', { class: 'muted', text: g.checkedAt ? 'Checked with GitHub at ' + g.checkedAt.slice(11, 16) : 'Not checked with GitHub yet' })),
+    list,
+    el('div', { class: 'row' }, el('button', { text: '🔄 Check GitHub now', onclick: async () => { await loadGitHub({ remote: true }); ghOverview(); } }),
+      el('button', { class: 'danger', text: 'Stop using GitHub', onclick: async () => { if (!confirm('Stop using this repo? Nothing is deleted: not on GitHub, not here.')) return; await api('/api/github/disconnect', { method: 'POST' }); await loadGitHub(); close(); } })),
+    el('div', { class: 'muted', text: 'Right-click a node in "Your nodes" (or on the canvas) for Save, changes, history. A pulsing node has changes not saved to GitHub.' }));
+}
+function ghSaveDialog(id, name, { mine = false } = {}) {
+  const msg = el('input', { placeholder: 'What changed? e.g. "Retry when the service is busy"' });
+  const out = el('div');
+  const go = async () => {
+    out.replaceChildren(el('div', { class: 'muted', text: 'Saving to GitHub…' }));
+    try {
+      const r = await api('/api/github/save', { method: 'POST', body: JSON.stringify({ id, message: msg.value, mine }) });
+      await loadGitHub();
+      out.replaceChildren(el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: r.nothing ? 'Nothing to save' : '✓ Saved' }),
+        r.url ? el('a', { href: r.url, target: '_blank', rel: 'noopener', text: 'See it on GitHub' }) : el('div', { class: 'caps', text: 'GitHub already has exactly these files.' })));
+    } catch (e) {
+      ghErr(out, e);
+      if (e.message.includes('newer version') || e.message.includes('both here')) out.append(el('div', { class: 'row' },
+        el('button', { text: '⬇ Take GitHub\'s version', onclick: () => ghTake(id, name) }),
+        el('button', { class: 'danger', text: 'Save mine over it', onclick: () => ghSaveDialog(id, name, { mine: true }) })));
+    }
+  };
+  msg.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') go(); });
+  dialog(`💾 Save ${name} to GitHub`,
+    mine ? el('div', { class: 'box warn-box' }, el('div', { class: 'caps', text: 'GitHub has another version of this node. Saving replaces it with yours (the other one stays in the history).' })) : null,
+    el('div', { class: 'field' }, el('label', { text: 'A few words about this change' }), msg),
+    el('div', { class: 'caps', text: 'The files are checked first: anything that looks like a key stops the save.' }),
+    el('div', { class: 'row' }, el('button', { class: 'primary', text: mine ? 'Save mine over it' : 'Save', onclick: go }), el('button', { text: '🔍 See my changes', onclick: () => ghDiff(id, name) })),
+    out);
+  msg.focus();
+}
+async function ghTake(id, name, { undo = false } = {}) {
+  if (!confirm(undo ? `Undo your changes to ${name}? Its files go back to the version on GitHub.` : `Replace ${name} on this computer with the version on GitHub? Your unsaved work, if any, is copied to workspace/.kit/backups first.`)) return;
+  try {
+    const r = await api('/api/github/update', { method: 'POST', body: JSON.stringify({ id }) });
+    await loadKinds(); await loadGitHub(); render();
+    flash(r.backup ? `${name}: GitHub's version is here. Yours was copied to ${r.backup}` : `${name}: GitHub's version is here.`);
+  } catch (e) { alert(e.message); }
+}
+async function ghDiff(id, name) {
+  const body = el('div', {}, el('div', { class: 'muted', text: 'Comparing with GitHub…' }));
+  dialog(`🔍 ${name}: changes not on GitHub`, body);
+  try {
+    const { files } = await api('/api/github/diff?id=' + encodeURIComponent(id));
+    body.replaceChildren(...(files.length ? files.map((f) => el('div', { class: 'box' },
+      el('div', { class: 'box-title', text: `${f.kind === 'added' ? '＋ new' : f.kind === 'removed' ? '－ removed' : '● changed'} · ${f.file}` }),
+      f.lines ? el('pre', { class: 'gh-diff' }, ...f.lines.map((l) => el('div', { class: 'gh-l gh-l' + (l.t === '+' ? 'add' : l.t === '-' ? 'del' : l.t === '…' ? 'gap' : 'ctx'), text: l.t === '…' ? (l.s || '⋯') : `${l.t} ${l.s}` }))) : el('div', { class: 'muted', text: 'Not a text file.' }))) : [el('div', { class: 'muted', text: 'Same as on GitHub.' })]));
+  } catch (e) { ghErr(body, e); }
+}
+async function ghHistory(id, name) {
+  const body = el('div', {}, el('div', { class: 'muted', text: 'Reading the history on GitHub…' }));
+  dialog(`🕘 ${name}: versions on GitHub`, body);
+  try {
+    const { commits } = await api('/api/github/history?id=' + encodeURIComponent(id));
+    body.replaceChildren(el('div', { class: 'caps', text: 'Putting an older version back changes the files here; save it to make it the latest. Unsaved work is copied to workspace/.kit/backups first.' }),
+      ...(commits.length ? commits.map((c, i) => el('div', { class: 'key-row' },
+        el('div', {}, el('b', { text: c.message || '(no message)' }), el('div', { class: 'muted' }, `${String(c.at || '').slice(0, 16).replace('T', ' ')} · ${c.author} · `, el('a', { href: c.url, target: '_blank', rel: 'noopener', text: c.sha.slice(0, 7) }))),
+        i === 0 ? el('span', { class: 'badge', text: 'latest' }) : el('button', { text: 'Put this one back', onclick: async () => {
+          if (!confirm(`Put the version "${c.message}" back in ${name}?`)) return;
+          try { const r = await api('/api/github/restore', { method: 'POST', body: JSON.stringify({ id, commit: c.sha }) }); await loadKinds(); await loadGitHub(); render(); $('#keysDialog').hidden = true; flash(`${name}: older version back${r.backup ? ', yours copied to ' + r.backup : ''}. Save it to make it the latest.`); }
+          catch (e) { alert(e.message); }
+        } }))) : [el('div', { class: 'muted', text: 'No version on GitHub yet.' })]));
+  } catch (e) { ghErr(body, e); }
+}

@@ -118,6 +118,7 @@ kit/
   sandbox-child.js      the code running inside a plugin's process (builds ctx)
   keys.js               the key bank (encryption, masked listing)
   netguard.js           the only way out to the internet, and the watch on everything else
+  github.js             your nodes on GitHub (status, save, take GitHub's version, history, diff)
   cache.js              saved answers and pictures
   store.js              workspace paths, graphs, files
   seed.js               the example graph on first start
@@ -127,7 +128,7 @@ web/                    the page: index.html, app.js, style.css, the two state v
 workspace/
   nodes/&lt;id&gt;/          plugin nodes (manifest.json + node.js); example-upper is the sample
   graphs/               your test graphs (not in git)
-  .kit/                 files, keys.json, secret.key, cache.json (not in git)
+  .kit/                 files, keys.json, secret.key, cache.json, github.json, backups/ (not in git)
 tools/                  the starters' scripts
 test/                   node --test suites
 docs.html               this document</code></pre>
@@ -349,6 +350,19 @@ Referrer-Policy: no-referrer</code></pre>
 <p><strong>In GIRAFE</strong> (from GIRAFE 0.68.0, open to admin accounts first): the node appears in the Promptmixer palette under <em>Your plugin nodes</em>, on every device of that account and for nobody else. GIRAFE checks the package again (file hashes, signature), pins the author key per node id, keeps every version (Settings › Connected kits: pick a version to roll back, turn it off, remove it, cut a kit's link) and runs the node in the same kind of locked child process as the kit. Key slots are filled from GIRAFE's own Key bank; GIRAFE adds the key to the call itself, only toward that service's official host. A plugin node doesn't run in a graph shared with someone else.</p>
 <p>Local test against a GIRAFE on your own machine: start the kit with <code>KIT_GIRAFE_URL=http://localhost:3003</code>. The link page may then be on another port of the same machine (the kit compares host names, not ports).</p>
 
+<h2 id="github">6c. Your nodes on GitHub</h2>
+<p><code>kit/github.js</code>, top bar <strong>🐙 GitHub</strong>. Keeps <code>workspace/nodes/&lt;id&gt;/</code> in a repo of the user's (private is the default; a public repo has to be confirmed) as <code>nodes/&lt;id&gt;/</code>. It uses GitHub's REST API only: no git program, so every request goes through the network guard (service <code>github</code>, host <code>api.github.com</code>, token in the <code>Authorization</code> header).</p>
+<p><strong>Setup.</strong> The user makes an empty private repo and a fine-grained token limited to that repo with <em>Contents: Read and write</em>, and pastes the token in 🔑 Keys (recognised by its <code>github_pat_</code> / <code>ghp_</code> start). <code>POST /api/github/connect { keyId, repo, allowPublic? }</code> checks the repo through the token (404 = name wrong or token not for it; no push permission = refused; public = refused unless confirmed) and writes <code>workspace/.kit/github.json</code>: owner, repo, branch, key id (never the token), and per node the files as last saved or fetched (git blob ids).</p>
+<p><strong>States</strong>, by comparing this computer's files, that saved list, and the repo's tree: <em>clean</em>, <em>changed</em> (here; the palette button pulses), <em>new</em> (never saved, ＋), <em>behind</em> (GitHub newer, ⬇), <em>conflict</em> (both, pulses red), <em>deleted</em> (removed from GitHub, still here), <em>remote</em> (only on GitHub, listed under Your nodes to get it). Local state is read every 5 s without internet; GitHub is checked every 2 minutes and on demand.</p>
+<p><strong>Operations</strong> (right-click a node under Your nodes, or a plugin node on the canvas):</p>
+<ul>
+  <li><strong>Save to GitHub</strong> (<code>POST /api/github/save { id, message, mine? }</code>): commit and push in one step. Files are scanned first; anything that looks like a key (Anthropic, OpenAI, Google, GitHub, Resend, Tripo, kit token, a private key block) stops the save before anything is sent. Refused when GitHub is newer or both changed, unless <code>mine</code>. An empty repo is started with a README. Blobs are uploaded only when GitHub doesn't have them; the commit's tree changes only <code>nodes/&lt;id&gt;/</code>; the branch is moved without force (someone else moved it = "try again", nothing lost).</li>
+  <li><strong>Take GitHub's version</strong> / <strong>Undo my changes</strong> (<code>POST /api/github/update { id }</code>): every file is downloaded and its blob id checked before the folder is touched. Work that exists nowhere on GitHub is first copied to <code>workspace/.kit/backups/&lt;id&gt;-&lt;time&gt;/</code>.</li>
+  <li><strong>See my changes</strong> (<code>GET /api/github/diff?id=</code>): per file, and a line diff for text.</li>
+  <li><strong>History</strong> (<code>GET /api/github/history?id=</code>) and <strong>Put this one back</strong> (<code>POST /api/github/restore { id, commit }</code>): an older version goes in the folder as a change, to save as the latest; same backup rule.</li>
+</ul>
+<p>Only node folders are read for upload; <code>.kit/</code> (keys, signing key, settings, backups) and <code>graphs/</code> are never read by this module. File names must match a strict pattern; files over 20 MB, more than 300 files, <code>node_modules</code> and <code>.git</code> are not uploaded. "Stop using GitHub" forgets the repo here; nothing is deleted anywhere. Fake GitHub for tests: <code>KIT_GITHUB_URL</code>.</p>
+
 <h2 id="cache">6b. Saved answers (cache)</h2>
 <p><code>kit/cache.js</code>, <code>workspace/.kit/cache.json</code>, the newest 500 entries. The key is a SHA-256 of what defines the request:</p>
 <ul>
@@ -368,13 +382,15 @@ Referrer-Policy: no-referrer</code></pre>
   <tr><td>A key leaving for the wrong place</td><td>Network guard, watch, log, CSP (section 5).</td></tr>
   <tr><td>A tampered package</td><td>Checksums per file, a package hash, an Ed25519 signature; the author key is pinned per node on GIRAFE.</td></tr>
   <tr><td>The kit acting on your GIRAFE account</td><td>Device link (no password in the kit), a token limited to your own nodes, revocable from both sides, guarded and logged like a key.</td></tr>
+  <tr><td>Your nodes on GitHub leaking a secret</td><td>Only node folders are uploaded, never <code>.kit/</code>; a key-like string stops the save; the token is limited to one repo by the user and goes to api.github.com only.</td></tr>
+  <tr><td>Losing work when taking GitHub's version</td><td>Everything downloaded and checked before the folder changes; unsaved work copied to <code>.kit/backups/</code> first.</td></tr>
   <tr><td>A tampered Node download</td><td>SHA-256 checked against nodejs.org's published list.</td></tr>
   <tr><td>Path tricks in file and graph names</td><td>Strict patterns for ids and file names before any path is built.</td></tr>
 </table>
 
 <h2 id="testing">8. Tests</h2>
 <pre><code>npm test     # node --test test/*.test.js</code></pre>
-<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
+<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. <code>test/github.test.js</code>: against a fake GitHub storing real git objects: connect checks, first save, only the node folder uploaded, changed / behind / conflict, backups, the key scan (nothing sent), history and restore, the token only in the header to GitHub. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
 
 <h2 id="versions">9. Versions and releases</h2>
 <p>Three numbers, in <code>kit/version.js</code>:</p>

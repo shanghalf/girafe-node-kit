@@ -162,3 +162,28 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .top button, .top .btn-link { white-space: nowrap; }
 .top select { width: 170px; }
 @media (max-width: 1360px) { .title-input { display: none; } .version { display: none; } }
+
+/* Your nodes on GitHub */
+.menu .msep { height: 1px; background: var(--line); margin: 4px 6px; }
+.gh-mark { margin-left: auto; font-size: 11px; opacity: .9; }
+.pm-palette-btn.gh-changed, .pm-palette-btn.gh-deleted { animation: gh-pulse 1.8s ease-in-out infinite; }
+.pm-palette-btn.gh-changed .gh-mark, .pm-palette-btn.gh-deleted .gh-mark { color: #f5b450; }
+.pm-palette-btn.gh-new .gh-mark { color: var(--dim); }
+.pm-palette-btn.gh-behind .gh-mark { color: #6fb3ff; }
+.pm-palette-btn.gh-conflict { animation: gh-pulse-bad 1.4s ease-in-out infinite; }
+.pm-palette-btn.gh-conflict .gh-mark { color: #ff7b7b; }
+.pm-palette-btn.gh-remote { opacity: .7; border-style: dashed; }
+@keyframes gh-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(245,180,80,0); } 50% { box-shadow: 0 0 0 3px rgba(245,180,80,.35), 0 0 12px rgba(245,180,80,.35); } }
+@keyframes gh-pulse-bad { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,123,123,0); } 50% { box-shadow: 0 0 0 3px rgba(255,123,123,.4), 0 0 12px rgba(255,123,123,.4); } }
+@media (prefers-reduced-motion: reduce) { .pm-palette-btn.gh-changed, .pm-palette-btn.gh-deleted, .pm-palette-btn.gh-conflict { animation: none; box-shadow: 0 0 0 2px rgba(245,180,80,.45); } }
+#ghBtn.gh-pending { border-color: #f5b450; }
+.gh-invite { border: 1px dashed var(--line); border-radius: 8px; padding: 8px; margin-top: 8px; font-size: 12px; display: grid; gap: 6px; }
+.gh-row.gh-changed b::after, .gh-row.gh-deleted b::after { content: ' ●'; color: #f5b450; }
+.gh-row.gh-conflict b::after { content: ' ⚠'; color: #ff7b7b; }
+.gh-row.gh-behind b::after { content: ' ⬇'; color: #6fb3ff; }
+.gh-diff { margin: 0; max-height: 50vh; overflow: auto; font-size: 12px; line-height: 1.45; background: var(--bg); border-radius: 6px; padding: 6px 0; }
+.gh-l { padding: 0 8px; white-space: pre-wrap; word-break: break-word; }
+.gh-ladd { background: rgba(95,217,122,.12); color: #a8f0b8; }
+.gh-ldel { background: rgba(224,90,90,.12); color: #ffb0b0; }
+.gh-lgap { color: var(--dim); }
+.gh-lctx { color: var(--soft); }

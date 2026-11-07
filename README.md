@@ -30,6 +30,14 @@ Developers: `node kit.js` does the same with your own Node 22+.
 Working with an AI assistant? Point it at `AI-INSTRUCTIONS.md`; `HOST_API.md` is the full
 contract. How the kit works inside, keys included: `docs.html` (open it, or 📖 Docs in the kit).
 
+## Keep your nodes on GitHub
+
+**🐙 GitHub** at the top saves your nodes to a private repo of yours: every save is a version you
+can go back to, and your other computer can get them. You make an empty private repo and a token
+for that repo only (the kit shows you how), and paste the token once in **🔑 Keys**. A node with
+changes not saved pulses under **Your nodes**; right-click it to save, see your changes, get
+GitHub's version or go back in its history. Only your node folders are uploaded, never your keys.
+
 ## Keys (Prompt and Generate image)
 
 The **Prompt** node asks Anthropic, OpenAI or Gemini; **Generate image** uses Google Gemini.

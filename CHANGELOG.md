@@ -3,7 +3,14 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
-## Unreleased (on main)
+## 0.2.0 (2026-11-07)
+
+- **🐙 GitHub**: keep your nodes in a private repo of yours. A token limited to that repo, pasted
+  once in 🔑 Keys; GitHub's API only (no git program), through the network guard. A changed
+  node pulses in Your nodes; right-click for Save to GitHub, See my changes, Take GitHub's
+  version / Undo my changes, History and Put this one back. Only node folders are uploaded; a
+  file holding something that looks like a key is refused before anything is sent; your work is
+  backed up in `workspace/.kit/backups/` before GitHub's version replaces it.
 
 - Manifest: optional `"category"`, the section a node is listed under in GIRAFE's palette.
   Gemini image (now 1.1.0) is in "Image generation".
