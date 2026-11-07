@@ -3,6 +3,10 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.5.2 (2026-11-07)
+
+- Fixed: a menu opened from a dialog (the ⋯ next to a node in GitHub) showed behind it.
+
 ## 0.5.1 (2026-11-07)
 
 - "Check for a newer kit" works with a private kit repository: a git clone now checks the
