@@ -6,17 +6,19 @@ real ones, run the graph and see what happens, with nothing sent anywhere.
 
 ## Start
 
-You need [Node.js](https://nodejs.org) 22 or newer. Nothing else to install.
+1. Download the kit as a ZIP (on GitHub: **Code › Download ZIP**) and unzip it anywhere.
+2. Double-click the starter for your computer:
+   - Windows: **Start GIRAFE kit (Windows).cmd**
+   - Mac: **Start GIRAFE kit (Mac).command** (the first time, right-click it and choose **Open**, because it isn't from the App Store)
+3. Your browser opens on the kit with an example graph. Press **Run**.
 
-```
-git clone https://github.com/shanghalf/girafe-node-kit
-cd girafe-node-kit
-node kit.js
-```
+The first start downloads a private copy of Node.js (about 30 MB) into the kit's folder and
+checks it against nodejs.org's published checksum. If your computer already has Node 22 or
+newer, it uses that instead. Nothing is installed on the computer: everything the kit keeps
+is in its folder. Keep the small window open while you use the kit; close it to stop. To
+remove the kit, delete the folder.
 
-Your browser opens on `http://localhost:4747` with an example graph. Press **Run**.
-
-Everything the kit keeps is in `workspace/`. To remove the kit, delete the folder.
+Developers: `node kit.js` does the same with your own Node 22+.
 
 ## Make a node
 
