@@ -14,11 +14,26 @@ const store = require('./store');
 const { HOST_API, SUPPORTED_HOST_APIS, GIRAFE_VERSION } = require('./version');
 const keys = require('./keys');
 const netguard = require('./netguard');
+const pluginState = require('./plugin-state');
 const HTTP_TIMEOUT_MS = 120_000;
 const HTTP_MAX_BYTES = 40 * 1024 * 1024;
-const KEY_SERVICES = ['anthropic', 'openai', 'gemini'];
+const KEY_SERVICES = ['anthropic', 'openai', 'gemini', 'tripo'];
+const KEY_SERVICES_V1 = ['anthropic', 'openai', 'gemini'];
+const BEARER = new Set(['openai', 'tripo']);
+const DOWNLOAD_MAX_BYTES = 200 * 1024 * 1024;
+const DOWNLOAD_TIMEOUT_MS = 20 * 60_000;
+const MAX_SECONDS = 3600;
 // Where each service's official API starts; test runs swap it for a fake server (KIT_*_URL).
-const OFFICIAL_BASE = { gemini: ['https://generativelanguage.googleapis.com/v1beta/models', 'KIT_GEMINI_URL'], anthropic: ['https://api.anthropic.com/v1', 'KIT_ANTHROPIC_URL'], openai: ['https://api.openai.com/v1', 'KIT_OPENAI_URL'] };
+const OFFICIAL_BASE = { gemini: ['https://generativelanguage.googleapis.com/v1beta/models', 'KIT_GEMINI_URL'], anthropic: ['https://api.anthropic.com/v1', 'KIT_ANTHROPIC_URL'], openai: ['https://api.openai.com/v1', 'KIT_OPENAI_URL'], tripo: ['https://openapi.tripo3d.ai/v3', 'KIT_TRIPO_URL'] };
+// Test runs: an address under a service's official base goes to its fake server instead.
+function testRedirect(target) {
+  for (const [official, env] of Object.values(OFFICIAL_BASE)) if (process.env[env] && target.startsWith(official)) return process.env[env] + target.slice(official.length);
+  return target;
+}
+// "network" entries: exact host names, or (host API 2) "*.example.com" for any host under it.
+function hostAllowed(caps, host) {
+  return (caps.network || []).some((h) => h === host || (h.startsWith('*.') && host.endsWith(h.slice(1))));
+}
 
 const FIELD_TYPES = new Set(['text', 'textarea', 'number', 'select', 'checkbox']);
 const CHILD = path.join(__dirname, 'sandbox-child.js');
@@ -56,13 +71,21 @@ function checkManifest(m, dirName) {
     else if (f.type === 'select' && !Array.isArray(f.options)) problems.push(`field "${f.key}": a select needs "options"`);
   }
   const caps = m.capabilities || {};
-  for (const k of Object.keys(caps)) if (!['network', 'ai', 'keys', 'files'].includes(k)) problems.push(`capability "${k}" is unknown`);
-  if (caps.network !== undefined && (!Array.isArray(caps.network) || caps.network.some((h) => !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(h)))) problems.push('"network": a list of host names, like ["api.example.com"]');
+  for (const k of Object.keys(caps)) if (!['network', 'ai', 'keys', 'files', 'state'].includes(k)) problems.push(`capability "${k}" is unknown`);
+  if (caps.network !== undefined && (!Array.isArray(caps.network) || caps.network.some((h) => !/^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i.test(h)))) problems.push('"network": a list of host names, like ["api.example.com"] (host API 2 also takes "*.example.com")');
+  else if ((caps.network || []).some((h) => h.startsWith('*.')) && m.hostApi < 2) problems.push('"*.host" entries in "network" need "hostApi": 2');
+  if (caps.state !== undefined && caps.state !== true) problems.push('"state": true or leave it out');
+  if (caps.state && m.hostApi < 2) problems.push('"state" needs "hostApi": 2');
+  if (m.limits !== undefined) {
+    const sec = m.limits && m.limits.seconds;
+    if (m.hostApi < 2) problems.push('"limits" needs "hostApi": 2');
+    else if (!Number.isInteger(sec) || sec < 1 || sec > MAX_SECONDS) problems.push(`"limits": { "seconds": 1 to ${MAX_SECONDS} }`);
+  }
   if (caps.keys !== undefined) {
     if (!Array.isArray(caps.keys)) problems.push('"keys": a list like [{ "slot": "gemini", "service": "gemini", "label": "Gemini API key" }]');
     else for (const k of caps.keys) {
       if (!k || !/^[a-z][a-z0-9_]{0,23}$/.test(k.slot || '')) problems.push(`key slot ${JSON.stringify(k && k.slot)}: a short lowercase name`);
-      else if (!KEY_SERVICES.includes(k.service)) problems.push(`key slot "${k.slot}": "service" must be one of ${KEY_SERVICES.join(', ')}`);
+      else if (!(m.hostApi >= 2 ? KEY_SERVICES : KEY_SERVICES_V1).includes(k.service)) problems.push(`key slot "${k.slot}": "service" must be one of ${(m.hostApi >= 2 ? KEY_SERVICES : KEY_SERVICES_V1).join(', ')}${KEY_SERVICES.includes(k.service) ? ' (this one needs "hostApi": 2)' : ''}`);
       else if (m.hostApi < 1) problems.push(`key slots need "hostApi": 1`);
       else if (!netguard.hostsFor(k.service).slice(0, 1).every((h) => (caps.network || []).includes(h))) problems.push(`key slot "${k.slot}": add "${netguard.hostsFor(k.service)[0]}" to "network"`);
     }
@@ -92,6 +115,7 @@ function listPlugins() {
       outputs: (m && m.outputs) || ['out'],
       fields: (m && m.fields) || [],
       capabilities: (m && m.capabilities) || {},
+      limits: (m && m.limits) || null,
       hostApi: m && m.hostApi,
       girafe: m && m.girafe,
       problems,
@@ -106,7 +130,7 @@ function getPlugin(id) {
 
 // Runs one firing. `inputs` = { A: value, B: value }, values as they travel between nodes.
 // Resolves to { outputs: [{ port, value }], logs, progress } or rejects with a clear Error.
-function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgress }) {
+function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgress, nodeId }) {
   return new Promise((resolve, reject) => {
     if (plugin.problems.length) return reject(new Error(`${plugin.name} can't run: ${plugin.problems[0]}`));
     const dir = path.join(store.NODES, plugin.id);
@@ -127,7 +151,8 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
       try { child.kill('SIGKILL'); } catch {}
       err ? reject(err) : resolve(val);
     };
-    const timer = setTimeout(() => finish(new Error(`${plugin.name} took longer than ${TIMEOUT_MS / 1000} s and was stopped`)), TIMEOUT_MS);
+    const limitMs = plugin.hostApi >= 2 && plugin.limits && plugin.limits.seconds ? plugin.limits.seconds * 1000 : TIMEOUT_MS;
+    const timer = setTimeout(() => finish(new Error(`${plugin.name} took longer than ${limitMs / 1000} s and was stopped`)), limitMs);
     const onAbort = () => finish(new Error('Stopped'));
     signal && signal.addEventListener('abort', onAbort);
     const keepLog = (s) => { if (logs.length < 200) logs.push(String(s).slice(0, 2000)); };
@@ -156,14 +181,50 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
         const f = store.saveFile(buf, mime);
         return { imageUrl: '/files/' + f.key, key: f.key, mime: f.mime, name: name ? String(name).slice(0, 120) : undefined, size: f.size };
       },
+      // ctx.state (host API 2): kept per canvas node, saved at once.
+      stateGet() {
+        if (!plugin.capabilities.state) throw new Error('ctx.state needs "capabilities": { "state": true }');
+        return pluginState.get(plugin.id, nodeId || 'test');
+      },
+      stateSet({ value }) {
+        if (!plugin.capabilities.state) throw new Error('ctx.state needs "capabilities": { "state": true }');
+        return pluginState.set(plugin.id, nodeId || 'test', value);
+      },
+      // ctx.files.fromUrl (host API 2): the host downloads a file (a result too big to pass through
+      // the plugin's memory) from a host in "network", through the guard, without any key.
+      async fromUrl({ url, name, mime }) {
+        if (plugin.hostApi < 2) throw new Error('ctx.files.fromUrl needs "hostApi": 2');
+        if (plugin.capabilities.files !== 'readwrite') throw new Error('making files needs "capabilities": { "files": "readwrite" }');
+        let u; try { u = new URL(String(url)); } catch { throw new Error('ctx.files.fromUrl: not a valid address'); }
+        if (u.protocol !== 'https:') throw new Error('ctx.files.fromUrl: https addresses only');
+        if (!hostAllowed(plugin.capabilities, u.hostname)) throw new Error(`ctx.files.fromUrl: ${u.hostname} is not in the manifest's "network" list`);
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), DOWNLOAD_TIMEOUT_MS);
+        const stop = () => ctrl.abort();
+        signal && signal.addEventListener('abort', stop, { once: true });
+        try {
+          const res = await netguard.send(testRedirect(u.toString()), { method: 'GET', signal: ctrl.signal }, { purpose: `plugin ${plugin.id} · download` });
+          if (!res.ok) throw new Error(`ctx.files.fromUrl: HTTP ${res.status} from ${u.hostname}`);
+          const chunks = []; let size = 0;
+          for await (const c of res.body) { size += c.length; if (size > DOWNLOAD_MAX_BYTES) throw new Error('ctx.files.fromUrl: file over 200 MB'); chunks.push(c); }
+          const buf = Buffer.concat(chunks);
+          const type = String(mime || res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+          const f = store.saveFile(buf, type);
+          return { imageUrl: '/files/' + f.key, key: f.key, mime: f.mime, name: name ? String(name).slice(0, 120) : undefined, size: f.size };
+        } catch (e) {
+          if (e instanceof netguard.Blocked) throw e;
+          if (ctrl.signal.aborted) throw new Error(signal && signal.aborted ? 'Stopped' : 'ctx.files.fromUrl: the download took too long');
+          throw e.message.startsWith('ctx.') ? e : new Error(`ctx.files.fromUrl: ${e.message}`);
+        } finally { clearTimeout(timer); signal && signal.removeEventListener('abort', stop); }
+      },
       ai() { throw new Error('ctx.ai is not in the host API yet; call a service with ctx.http and a key slot.'); },
       // ctx.http: the plugin's only way to the internet. The host adds the key of a declared slot
       // (the plugin never sees it) and sends through the network guard.
-      async http({ slot, method = 'GET', url, headers = {}, json, body }) {
+      async http({ slot, method = 'GET', url, headers = {}, json, body, form }) {
         if (plugin.hostApi < 1) throw new Error('ctx.http needs "hostApi": 1 in the manifest');
         let u; try { u = new URL(String(url)); } catch { throw new Error('ctx.http: not a valid address'); }
         if (u.protocol !== 'https:') throw new Error('ctx.http: https addresses only');
-        if (!(plugin.capabilities.network || []).includes(u.hostname)) throw new Error(`ctx.http: ${u.hostname} is not in the manifest's "network" list`);
+        if (!hostAllowed(plugin.capabilities, u.hostname)) throw new Error(`ctx.http: ${u.hostname} is not in the manifest's "network" list`);
         const h = {};
         for (const [k, v] of Object.entries(headers || {})) {
           if (/^(authorization|x-api-key|x-goog-api-key|cookie|host|proxy-authorization)$/i.test(k)) throw new Error(`ctx.http: the "${k}" header is set by the host (use a key slot)`);
@@ -177,15 +238,32 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
           const keyId = keySlots && keySlots[slot];
           if (!keyId) throw new Error(`Choose a key for "${decl.label || slot}" in the node's panel.`);
           const k = keys.use(keyId, decl.service);
-          h[netguard.AUTH_HEADER[decl.service]] = decl.service === 'openai' ? `Bearer ${k.value}` : k.value;
+          h[netguard.AUTH_HEADER[decl.service]] = BEARER.has(decl.service) ? `Bearer ${k.value}` : k.value;
           guard = { service: decl.service, key: k.value, keyLabel: k.label, purpose: `plugin ${plugin.id} · slot ${slot}` };
-          const [official, env] = OFFICIAL_BASE[decl.service];
-          if (process.env[env] && target.startsWith(official)) target = process.env[env] + target.slice(official.length);
         }
+        target = testRedirect(target);
         const init = { method: String(method).toUpperCase(), headers: h };
         if (json !== undefined) { init.body = JSON.stringify(json); h['content-type'] = h['content-type'] || 'application/json'; }
+        else if (form !== undefined) {
+          // host API 2: a multipart form; a field is text, or { file: ref, name? } for a file that
+          // arrived on an input (read by the host, never through the plugin's memory).
+          if (plugin.hostApi < 2) throw new Error('ctx.http forms need "hostApi": 2');
+          if (!form || typeof form !== 'object') throw new Error('ctx.http: form must be an object');
+          const fd = new FormData(); let total = 0;
+          for (const [k, v] of Object.entries(form)) {
+            if (v && typeof v === 'object' && v.file) {
+              if (!(plugin.capabilities.files === 'read' || plugin.capabilities.files === 'readwrite')) throw new Error('sending a file needs "capabilities": { "files": "read" }');
+              const p = store.filePath(v.file.key);
+              if (!p || !fs.existsSync(p)) throw new Error('ctx.http form: no such file');
+              const buf = fs.readFileSync(p); total += buf.length;
+              fd.append(k, new Blob([buf], { type: store.mimeOf(v.file.key) }), String(v.name || v.file.name || v.file.key).slice(0, 120));
+            } else fd.append(k, String(v ?? ''));
+          }
+          if (total > HTTP_MAX_BYTES) throw new Error('ctx.http: request over 40 MB');
+          init.body = fd;
+        }
         else if (body !== undefined) init.body = String(body);
-        if (init.body && init.body.length > HTTP_MAX_BYTES) throw new Error('ctx.http: request over 40 MB');
+        if (typeof init.body === 'string' && init.body.length > HTTP_MAX_BYTES) throw new Error('ctx.http: request over 40 MB');
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS);
         const stop = () => ctrl.abort();
@@ -240,4 +318,4 @@ function toWire(v) {
   return JSON.stringify(v);
 }
 
-module.exports = { listPlugins, getPlugin, runPlugin, checkManifest, girafeOk, cmpVersion, toWire };
+module.exports = { listPlugins, getPlugin, runPlugin, checkManifest, girafeOk, cmpVersion, toWire, hostAllowed, MAX_SECONDS };

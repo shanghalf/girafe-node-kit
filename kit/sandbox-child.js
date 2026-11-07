@@ -62,9 +62,13 @@ process.on('message', async (msg) => {
     files: {
       read: async (ref) => { const r = await call('readFile', { ref }); return { bytes: Buffer.from(r.base64, 'base64'), mime: r.mime }; },
       write: (bytes, mime, name) => call('writeFile', { base64: Buffer.from(bytes).toString('base64'), mime, name }),
+      // host API 2: the host downloads it (big results never pass through the node's memory)
+      fromUrl: (url, opts = {}) => call('fromUrl', { url, name: opts.name, mime: opts.mime }),
     },
+    // host API 2: a small object kept per node across runs (needs "state": true)
+    state: { get: () => call('stateGet', {}), set: (value) => call('stateSet', { value }) },
     ai: { ask: () => call('ai', {}) },
-    // ctx.http({ slot?, method, url, headers?, json?, body? }) -> { status, ok, json?, text? }
+    // ctx.http({ slot?, method, url, headers?, json?, body?, form? }) -> { status, ok, json?, text? }
     http: (opts) => call('http', opts || {}),
   };
   try {

@@ -16,6 +16,7 @@ const SERVICES = {
   anthropic: { label: 'Anthropic (Claude)', get: 'https://console.anthropic.com/settings/keys' },
   openai: { label: 'OpenAI', get: 'https://platform.openai.com/api-keys' },
   gemini: { label: 'Google Gemini', get: 'https://aistudio.google.com/apikey' },
+  tripo: { label: 'Tripo 3D', get: 'https://platform.tripo3d.ai/api-keys' },
   github: { label: 'GitHub (your nodes repo)', get: 'https://github.com/settings/personal-access-tokens/new' },
   other: { label: 'Other', get: null },
   // Not pasted: the token a GIRAFE account gives this computer when you connect the kit.
@@ -54,6 +55,7 @@ function guessService(value) {
   if (/^AIza/.test(value)) return 'gemini';
   if (/^sk-/.test(value)) return 'openai';
   if (/^(github_pat_|gh[pousr]_)/.test(value)) return 'github';
+  if (/^tsk_/.test(value)) return 'tripo';
   return 'other';
 }
 

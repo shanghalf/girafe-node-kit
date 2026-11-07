@@ -3,6 +3,20 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.3.0 (2026-11-07)
+
+- **Host API 2**, simulating GIRAFE 0.69.0 (not released yet: nodes written for host API 2 run
+  in the kit now, and in GIRAFE once 0.69.0 is out). Nodes for host API 0 and 1 run unchanged.
+  - `"limits": { "seconds": n }`: a firing may run up to an hour (a node waiting on a slow service).
+  - `ctx.state.get()` / `ctx.state.set(obj)` with `"state": true`: a small object kept per node
+    on the canvas, across runs and restarts.
+  - `ctx.files.fromUrl(url, { name, mime })`: the host downloads a big result (200 MB) to a file.
+  - `ctx.http({ form })`: multipart forms, a file field read by the host from a reference.
+  - `"network"` takes `"*.example.com"`.
+  - Key service `tripo` (Tripo 3D keys start with `tsk_` and are recognised when pasted).
+- 3D model results (`model/gltf-binary`, FBX, OBJ, STL) are kept as files and shown by their
+  preview picture, with a download link.
+
 ## 0.2.0 (2026-11-07)
 
 - **🐙 GitHub**: keep your nodes in a private repo of yours. A token limited to that repo, pasted

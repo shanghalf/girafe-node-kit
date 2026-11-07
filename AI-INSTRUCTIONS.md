@@ -27,7 +27,7 @@ Start from a copy of `workspace/nodes/example-upper/`.
    ("Add a picture on A first.", not "undefined is not a function").
 7. **Small firings.** One firing should finish in seconds. For lists, either take the
    whole list at once or `ctx.emit` one packet per item; say which in the description.
-8. **Versions.** Use the `hostApi` that `/api/info` reports (1 today). Bump the node's own
+8. **Versions.** Use the `hostApi` that `/api/info` reports (2 today; use 1 if the node needs none of what 2 added, so older GIRAFE versions can run it). Bump the node's own
    `version` when its behaviour changes: patch for fixes, minor for new settings, major
    when old graphs would behave differently.
 9. **The panel is the manifest.** Settings are `fields`; keep labels short and plain.

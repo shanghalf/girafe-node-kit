@@ -42,7 +42,7 @@
 <div class="wrap">
 <nav>
   <div class="brand">🦒 GIRAFE node kit</div>
-  <div class="ver">Technical documentation · kit 0.1.0 (+ main) · simulates GIRAFE 0.67.3 · host API 1</div>
+  <div class="ver">Technical documentation · kit 0.3.0 · simulates GIRAFE 0.69.0 · host API 2</div>
   <a href="#overview">1. Overview</a>
   <a href="#install">2. Install and start</a>
   <a href="#layout">3. Files and folders</a>
@@ -117,6 +117,7 @@ kit/
   plugins.js            finds plugin folders, checks manifests, runs a firing in the sandbox
   sandbox-child.js      the code running inside a plugin's process (builds ctx)
   keys.js               the key bank (encryption, masked listing)
+  plugin-state.js       ctx.state: a small object per plugin node, in .kit/plugin-state.json
   netguard.js           the only way out to the internet, and the watch on everything else
   github.js             your nodes on GitHub (status, save, take GitHub's version, history, diff)
   cache.js              saved answers and pictures
@@ -128,7 +129,7 @@ web/                    the page: index.html, app.js, style.css, the two state v
 workspace/
   nodes/&lt;id&gt;/          plugin nodes (manifest.json + node.js); example-upper is the sample
   graphs/               your test graphs (not in git)
-  .kit/                 files, keys.json, secret.key, cache.json, github.json, backups/ (not in git)
+  .kit/                 files, keys.json, secret.key, cache.json, github.json, plugin-state.json, backups/ (not in git)
 tools/                  the starters' scripts
 test/                   node --test suites
 docs.html               this document</code></pre>
@@ -212,7 +213,7 @@ docs.html               this document</code></pre>
 <ul>
   <li>It can read its own folder only, cannot write to disk, cannot start processes or worker threads.</li>
   <li>It has <strong>no environment variables</strong>: no keys, no paths.</li>
-  <li>It is killed after 60 seconds, and dies alone if it exceeds 128 MB.</li>
+  <li>It is killed after 60 seconds (host API 2: the <code>limits.seconds</code> of its manifest, up to an hour), and dies alone if it exceeds 128 MB.</li>
   <li>It talks to the kit only through <code>ctx</code>, whose calls are IPC messages handled by the host side in <code>plugins.js</code> (emit, progress, log, file read/write, each checked against the manifest's capabilities).</li>
   <li><strong>No network but <code>ctx.http</code>.</strong> Before the plugin's code loads, <code>sandbox-child.js</code> removes <code>fetch</code> (and <code>WebSocket</code>, <code>EventSource</code>) and locks Node's module loader so <code>http</code>, <code>https</code>, <code>http2</code>, <code>net</code>, <code>tls</code>, <code>dgram</code>, <code>dns</code>, <code>child_process</code>, <code>cluster</code>, <code>worker_threads</code>, <code>inspector</code>, <code>undici</code>, <code>module</code>, <code>vm</code>, <code>v8</code>, <code>repl</code> can't be loaded (also through <code>process.getBuiltinModule</code>). Node's permission flags already refuse native bindings and add-ons. This is a lock inside the process, not an operating-system firewall; GIRAFE will add a network-level one on its server.</li>
 </ul>
@@ -378,7 +379,7 @@ Referrer-Policy: no-referrer</code></pre>
   <tr><td>A website driving the kit (DNS rebinding, CSRF)</td><td>Host header must be localhost; writes with a foreign Origin refused.</td></tr>
   <tr><td>A plugin reading files, keys, environment</td><td>Permission model (own folder, read only), empty environment, no keys in ctx (key slots are filled by the host).</td></tr>
   <tr><td>A plugin calling the internet on its own</td><td>No fetch, network modules locked; <code>ctx.http</code> only to its declared hosts, through the guard.</td></tr>
-  <tr><td>A runaway plugin</td><td>128 MB, 60 s, one process per firing.</td></tr>
+  <tr><td>A runaway plugin</td><td>128 MB, 60 s (up to an hour when the manifest asks), one process per firing; Stop ends it at once.</td></tr>
   <tr><td>A key leaving for the wrong place</td><td>Network guard, watch, log, CSP (section 5).</td></tr>
   <tr><td>A tampered package</td><td>Checksums per file, a package hash, an Ed25519 signature; the author key is pinned per node on GIRAFE.</td></tr>
   <tr><td>The kit acting on your GIRAFE account</td><td>Device link (no password in the kit), a token limited to your own nodes, revocable from both sides, guarded and logged like a key.</td></tr>
@@ -390,7 +391,7 @@ Referrer-Policy: no-referrer</code></pre>
 
 <h2 id="testing">8. Tests</h2>
 <pre><code>npm test     # node --test test/*.test.js</code></pre>
-<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. <code>test/github.test.js</code>: against a fake GitHub storing real git objects: connect checks, first save, only the node folder uploaded, changed / behind / conflict, backups, the key scan (nothing sent), history and restore, the token only in the header to GitHub. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
+<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. <code>test/host-api-2.test.js</code>: long runs, <code>ctx.state</code> kept per node across processes, a form carrying an input picture, a download kept as a file with no key sent, a host outside <code>network</code> refused, wildcard hosts, the tripo key as a Bearer token. <code>test/github.test.js</code>: against a fake GitHub storing real git objects: connect checks, first save, only the node folder uploaded, changed / behind / conflict, backups, the key scan (nothing sent), history and restore, the token only in the header to GitHub. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
 
 <h2 id="versions">9. Versions and releases</h2>
 <p>Three numbers, in <code>kit/version.js</code>:</p>
@@ -398,7 +399,7 @@ Referrer-Policy: no-referrer</code></pre>
   <tr><th>Number</th><th>Meaning</th></tr>
   <tr><td><code>KIT_VERSION</code></td><td>The kit itself.</td></tr>
   <tr><td><code>GIRAFE_VERSION</code></td><td>The GIRAFE release the kit simulates. A manifest's <code>"girafe": "&gt;=x.y.z"</code> is checked against it.</td></tr>
-  <tr><td><code>HOST_API</code></td><td>The plugin contract (1). A manifest's <code>hostApi</code> must be one of <code>SUPPORTED_HOST_APIS</code> (0 and 1). Additions keep the number; a breaking change bumps it, and the previous one stays supported for a while.</td></tr>
+  <tr><td><code>HOST_API</code></td><td>The plugin contract (2). A manifest's <code>hostApi</code> must be one of <code>SUPPORTED_HOST_APIS</code> (0, 1 and 2). A change an older GIRAFE can't run bumps it (host API 2 added long runs, state and downloads); the previous ones stay supported for a while.</td></tr>
 </table>
 <p>Branches: <code>main</code> is development, <code>release</code> is what users download. Shipping a version: bump <code>KIT_VERSION</code> and <code>package.json</code>, add the <code>CHANGELOG.md</code> entry, then move <code>release</code> to that commit and tag it <code>vX.Y.Z</code>.</p>
 

@@ -14,8 +14,8 @@ const FILES = path.join(ROOT, '.kit', 'files');
 for (const d of [NODES, GRAPHS, FILES]) fs.mkdirSync(d, { recursive: true });
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const FILE_RE = /^[a-f0-9]{16}\.(png|jpg|webp|gif|bin|txt|json)$/;
-const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'text/plain': 'txt', 'application/json': 'json' };
+const FILE_RE = /^[a-f0-9]{16}\.(png|jpg|webp|gif|bin|txt|json|glb|fbx|obj|stl)$/;
+const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'text/plain': 'txt', 'application/json': 'json', 'model/gltf-binary': 'glb', 'model/fbx': 'fbx', 'model/obj': 'obj', 'model/stl': 'stl' };
 const MIME = Object.fromEntries(Object.entries(EXT).map(([m, e]) => [e, m]));
 
 function listGraphs() {

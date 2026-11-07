@@ -22,6 +22,10 @@ const api = async (path, opts = {}) => {
 const uid = (p) => p + Math.random().toString(36).slice(2, 9);
 const letter = (i) => { let s = ''; i += 1; while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; };
 const isRef = (v) => !!(v && typeof v === 'object' && v.key && v.mime);
+// A 3D model reference (host API 2) is shown by its preview picture, when it has one.
+const isModel = (r) => isRef(r) && /^model\//.test(r.mime);
+const thumbOf = (r) => (isModel(r) ? (isRef(r.preview) ? r.preview.imageUrl : null) : r.imageUrl);
+const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
 const GLYPH = { idle: '', running: '⏳', waiting: '✋', done: '✓', error: '⚠️', skipped: '–', stopped: '⏹' };
 
 const S = {
@@ -237,11 +241,13 @@ function nodeBody(n, k, st) {
   const pics = st?.outputs ? picsOf(st.outputs) : [];
   if (n.type === 'collect' && pics.length) {
     out.push(el('div', { class: 'pm-node-gallery', onpointerdown: (ev) => { if (ev.offsetX >= ev.currentTarget.clientWidth) ev.stopPropagation(); } },
-      ...pics.map((r) => el('img', { class: 'pm-node-gallery-thumb', src: r.imageUrl, alt: '', title: r.name || '' }))));
+      ...pics.map((r) => (thumbOf(r) ? el('img', { class: 'pm-node-gallery-thumb', src: thumbOf(r), alt: '', title: r.name || '' }) : el('div', { class: 'pm-node-gallery-thumb pm-model-tile', title: r.name || '', text: '🧊' })))));
   }
   if (st?.note) out.push(el('div', { class: 'pm-node-note', text: st.note }));
   if (st?.outputs?.length && !(n.type === 'image' && isRef(n.image)) && !(n.type === 'collect' && pics.length)) {
-    out.push(el('div', { class: 'pm-node-preview', text: pics.length ? `📷 ${pics.length} image${pics.length === 1 ? '' : 's'}` : truncate(shortText(st.outputs), 140) }));
+    const models = pics.filter(isModel);
+    if (models.length === 1 && thumbOf(models[0])) out.push(el('img', { class: 'pm-node-thumb', src: thumbOf(models[0]), alt: '' }));
+    out.push(el('div', { class: 'pm-node-preview', text: models.length ? `🧊 ${models.length === 1 ? models[0].name || '3D model' : models.length + ' 3D models'}${models.length === 1 && models[0].size ? ' · ' + mb(models[0].size) : ''}` : pics.length ? `📷 ${pics.length} image${pics.length === 1 ? '' : 's'}` : truncate(shortText(st.outputs), 140) }));
   }
   return out;
 }
@@ -653,7 +659,7 @@ function openKeys() {
     const label = el('input', { placeholder: 'Name, e.g. "My Gemini key"' });
     const service = el('select', {}, ...Object.entries(S.services).filter(([, x]) => !x.internal).map(([id, s]) => el('option', { value: id, text: s.label })));
     const value = el('input', { type: 'password', placeholder: 'Paste the key', autocomplete: 'off' });
-    value.addEventListener('input', () => { const v = value.value.trim(); service.value = /^sk-ant-/.test(v) ? 'anthropic' : /^AIza/.test(v) ? 'gemini' : /^sk-/.test(v) ? 'openai' : /^(github_pat_|gh[pousr]_)/.test(v) ? 'github' : service.value; });
+    value.addEventListener('input', () => { const v = value.value.trim(); service.value = /^sk-ant-/.test(v) ? 'anthropic' : /^AIza/.test(v) ? 'gemini' : /^sk-/.test(v) ? 'openai' : /^(github_pat_|gh[pousr]_)/.test(v) ? 'github' : /^tsk_/.test(v) ? 'tripo' : service.value; });
     const err = el('div', { class: 'problems' });
     const add = async () => {
       const v = value.value;
@@ -732,7 +738,11 @@ function runBox(st) {
   const pics = picsOf(st.outputs || []);
   return el('div', { class: 'box' }, el('div', { class: 'box-title', text: `Last run · ${st.status}${st.firings ? ' · fired ' + st.firings + '×' : ''}` }),
     st.note ? el('div', { class: st.status === 'error' ? 'problems' : 'muted', text: st.note }) : null,
-    pics.length ? el('div', { class: 'thumbs' }, ...pics.map((r) => el('a', { href: r.imageUrl, target: '_blank' }, el('img', { src: r.imageUrl, alt: '' })))) : null,
+    pics.length ? el('div', { class: 'thumbs' }, ...pics.map((r) => (isModel(r)
+      ? el('div', { class: 'model-card' }, thumbOf(r) ? el('img', { src: thumbOf(r), alt: '' }) : el('div', { class: 'pm-model-tile', text: '🧊' }),
+        el('div', {}, el('b', { text: r.name || '3D model' }), el('div', { class: 'muted', text: [r.size ? mb(r.size) : '', r.credits != null ? r.credits + ' credits' : '', r.taskId ? 'task ' + r.taskId : ''].filter(Boolean).join(' · ') }),
+          el('a', { href: r.imageUrl, download: r.name || 'model.glb', text: '⬇ Download' })))
+      : el('a', { href: r.imageUrl, target: '_blank' }, el('img', { src: r.imageUrl, alt: '' }))))) : null,
     ...(!pics.length ? (st.outputs || []).slice(0, 50).map((v) => el('div', { class: 'out-item', text: typeof v === 'string' ? v : JSON.stringify(v, null, 2) })) : []),
     st.logs?.length ? el('details', {}, el('summary', { text: `Log (${st.logs.length})` }), ...st.logs.map((l) => el('div', { class: 'out-item', text: l }))) : null);
 }

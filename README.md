@@ -72,8 +72,8 @@ In a plugin node's panel:
 
 ## Not yet
 
-Long-running jobs (a call that waits minutes for a result), several outputs, and files other than
-pictures come in a later host API version (see `CHANGELOG.md`).
+Asking GIRAFE's own AI from a node (`ctx.ai`), and a 3D viewer in the kit's panel (models show
+by their preview picture and download link for now).
 
 ## Branches
 
