@@ -143,6 +143,60 @@ test('pasting a key makes no internet request, and listing never decrypts', asyn
   finally { fs.writeFileSync(secret, saved); }
 });
 
+function plugin(id, manifest, code) {
+  const d = path.join(WS, 'nodes', id);
+  fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(d, 'manifest.json'), JSON.stringify({ id, name: id, version: '0.1.0', hostApi: 1, girafe: '>=0.67.0', outputs: ['out'], ...manifest }));
+  fs.writeFileSync(path.join(d, 'node.js'), code);
+}
+
+test('the gemini-image plugin: key added by the host, never seen by the plugin; picture saved', async () => {
+  fs.cpSync(path.join(__dirname, '..', 'workspace', 'nodes', 'gemini-image'), path.join(WS, 'nodes', 'gemini-image'), { recursive: true });
+  calls.length = 0;
+  const rs = await run({ nodes: [
+    { id: 'i', type: 'input', value: 'a red giraffe' },
+    { id: 'g', type: 'plugin:gemini-image', keySlots: { gemini: G }, settings: { aspectRatio: '1:1', model: 'gemini-nano-banana-2.1' } },
+    { id: 'c', type: 'collect' }],
+  wires: [{ id: 'w1', from: 'i', to: 'g' }, { id: 'w2', from: 'g', to: 'c' }] });
+  assert.equal(rs.status, 'done', JSON.stringify(rs.nodes));
+  const call = calls.find((c) => c.url.includes(':generateContent'));
+  assert.equal(call.headers['x-goog-api-key'], 'AIzaTEST-123456');
+  assert.equal(call.body.contents[0].parts[0].text, 'a red giraffe\n\nAspect ratio: Square (1:1).');
+  const pics = JSON.parse(rs.nodes.c.outputs[0]);
+  assert.equal(pics[0].mime, 'image/png');
+  assert.ok(fs.existsSync(path.join(WS, '.kit', 'files', pics[0].key)));
+  const log = require('../kit/netguard').report().log.find((e) => /plugin gemini-image/.test(e.purpose));
+  assert.equal(log.key, 'gem');
+  // no key chosen for the slot
+  const none = await run({ nodes: [{ id: 'g', type: 'plugin:gemini-image', settings: { prompt: 'x' } }], wires: [] });
+  assert.match(none.nodes.g.note, /Choose a key for "Gemini API key"/);
+});
+
+test('plugin network lock: no fetch, no network modules; ctx.http only to declared hosts, no auth headers', async () => {
+  plugin('sneaky', { capabilities: { network: ['generativelanguage.googleapis.com'] } }, `module.exports = { async run(ctx) {
+    const out = [];
+    out.push(typeof fetch);
+    for (const m of ['https', 'node:net', 'http', 'module', 'child_process']) { try { require(m); out.push(m + ':open'); } catch { out.push(m + ':blocked'); } }
+    try { process.getBuiltinModule('net'); out.push('getBuiltin:open'); } catch { out.push('getBuiltin:blocked'); }
+    try { await ctx.http({ url: 'https://evil.example/x' }); out.push('evil:sent'); } catch (e) { out.push('evil:refused'); }
+    try { await ctx.http({ url: 'https://generativelanguage.googleapis.com/v1beta/models', headers: { 'X-Goog-Api-Key': 'stolen' } }); out.push('hdr:sent'); } catch (e) { out.push('hdr:refused'); }
+    try { await ctx.http({ slot: 'gemini', url: 'https://generativelanguage.googleapis.com/v1beta/models' }); out.push('slot:sent'); } catch (e) { out.push('slot:refused'); }
+    return out.join(' ');
+  } };`);
+  const rs = await run({ nodes: [{ id: 'p', type: 'plugin:sneaky' }], wires: [] });
+  assert.equal(rs.nodes.p.outputs[0], 'undefined https:blocked node:net:blocked http:blocked module:blocked child_process:blocked getBuiltin:blocked evil:refused hdr:refused slot:refused');
+});
+
+test('host API: a node written for host API 0 still runs; ctx.http needs 1', async () => {
+  plugin('old-style', { hostApi: 0 }, 'module.exports = { async run(ctx) { try { await ctx.http({ url: "https://x.example" }); return "sent"; } catch (e) { return e.message; } } };');
+  const rs = await run({ nodes: [{ id: 'p', type: 'plugin:old-style' }], wires: [] });
+  assert.equal(rs.nodes.p.status, 'done');
+  assert.match(rs.nodes.p.outputs[0], /needs "hostApi": 1/);
+  plugin('bad-slot', { capabilities: { keys: [{ slot: 'g', service: 'gemini' }] } }, 'module.exports = { run: () => 1 };');
+  const bad = require('../kit/plugins').listPlugins().find((x) => x.id === 'bad-slot');
+  assert.match(bad.problems.join(), /add "generativelanguage.googleapis.com" to "network"/);
+});
+
 test('model list for a Gemini key', async () => {
   const t = require('../kit/ai/text');
   const ms = await t.listModels({ service: 'gemini', key: 'AIzaTEST-123456', kind: 'text' });

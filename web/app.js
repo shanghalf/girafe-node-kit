@@ -494,6 +494,11 @@ function renderPanel() {
     field({ key: 'title', type: 'text', label: 'Title' }, n.title, (v) => { n.title = v; changed({ undoable: false, panel: false }); }),
   ];
   if (k.problems?.length) kids.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Can\'t run' }), el('ul', { class: 'problems' }, ...k.problems.map((x) => el('li', { text: x })))));
+  // A plugin's key slots: you pick which of your keys fills each one; the plugin never sees it.
+  for (const slot of (!k.core && k.capabilities?.keys) || []) {
+    kids.push(keyField({ label: `${slot.label || slot.slot} (key slot "${slot.slot}")`, services: [slot.service] }, n.keySlots?.[slot.slot],
+      (v) => { n.keySlots = { ...(n.keySlots || {}), [slot.slot]: v }; changed({ undoable: false, panel: false }); }));
+  }
   for (const f of k.fields || []) {
     const isPlugin = n.type.startsWith('plugin:');
     const get = () => (isPlugin ? n.settings?.[f.key] : n[f.key]);
@@ -509,11 +514,20 @@ function renderPanel() {
   }
   if (!k.core && !k.missing) kids.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Manifest' }),
     el('div', { class: 'caps', text: `host API ${k.hostApi} · needs GIRAFE ${k.girafe || 'any'} · outputs: ${(k.outputs || []).join(', ')}` }),
-    el('div', { class: 'caps', text: 'capabilities: ' + (Object.keys(k.capabilities || {}).length ? JSON.stringify(k.capabilities) : 'none') }),
+    el('div', { class: 'caps', text: 'It may: ' + capsText(k.capabilities) }),
     el('div', { class: 'caps', text: `folder: workspace/nodes/${k.id}/` })));
   if (st) kids.push(runBox(st));
   kids.push(el('div', { class: 'row' }, el('button', { text: n.disabled ? '● Turn on' : '○ Turn off', onclick: () => { n.disabled = !n.disabled; changed(); } }), el('button', { class: 'danger', text: '🗑 Delete', onclick: deleteSelected })));
   p.replaceChildren(...kids);
+}
+// What a plugin is allowed to do, in plain words (what a user checks before installing it).
+function capsText(c = {}) {
+  const out = [];
+  for (const k of c.keys || []) out.push(`use your ${S.services[k.service]?.label || k.service} key (slot "${k.slot}"; it never sees the key)`);
+  if (c.network?.length) out.push(`connect to ${c.network.join(', ')}`);
+  if (c.files === 'read') out.push('read the files it receives');
+  if (c.files === 'readwrite') out.push('read the files it receives and make new ones');
+  return out.length ? out.join(' · ') : 'nothing beyond computing (no keys, no internet, no files)';
 }
 function field(f, value, onInput) {
   let input;

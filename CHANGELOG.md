@@ -16,6 +16,13 @@ with what plugin authors need to do.
 - Local **key bank** (🔑 Keys): keys saved encrypted on this computer, shown masked only.
 - **Network guard**: a key may only go to its own service, in its login header; every outgoing
   request of the kit is watched and listed (🔑 Keys > Network); the page is locked to the kit.
+- **Host API 1** (nodes for host API 0 still run): key slots and `ctx.http`. A plugin declares
+  `"keys"` and `"network"`; the user picks a key per slot in the panel; the host adds the key and
+  sends through the network guard; the plugin never sees it. Inside a plugin's process, `fetch`
+  and the network modules are gone: `ctx.http` is the only way out.
+- **Gemini image** (`workspace/nodes/gemini-image`): Generate image rebuilt as a plugin, the first
+  real plugin and the test case for packaging and the marketplace.
+- The panel says what a plugin may do in plain words.
 
 ## 0.1.0 · simulates GIRAFE 0.67.3 · host API 0 (draft)
 

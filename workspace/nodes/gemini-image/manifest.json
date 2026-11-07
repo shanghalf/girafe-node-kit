@@ -1,0 +1,28 @@
+{
+  "id": "gemini-image",
+  "name": "Gemini image",
+  "version": "1.0.0",
+  "description": "GIRAFE's Generate image, rebuilt as a plugin: a picture from Google Gemini. Text on its inputs adds to the description; pictures on its inputs are used as references (image to image).",
+  "hostApi": 1,
+  "girafe": ">=0.67.0",
+  "icon": "🎨",
+  "color": "#e86fa8",
+  "inputs": { "min": 0, "max": 8 },
+  "outputs": ["out"],
+  "fields": [
+    { "key": "prompt", "type": "textarea", "label": "Describe the picture", "placeholder": "A watercolor giraffe reading a map at sunset", "default": "" },
+    { "key": "aspectRatio", "type": "select", "label": "Format", "default": "", "options": [["", "Model default"], ["1:1", "Square (1:1)"], ["3:4", "Portrait (3:4)"], ["4:3", "Landscape (4:3)"], ["9:16", "Tall portrait (9:16)"], ["16:9", "Widescreen (16:9)"]] },
+    { "key": "imageSize", "type": "select", "label": "Picture size", "default": "1K", "options": [["1K", "1K"], ["2K", "2K"], ["4K", "4K"]] },
+    { "key": "model", "type": "select", "label": "Model", "default": "gemini-nano-banana-2.1", "options": [
+      ["gemini-nano-banana-2.1", "Nano Banana 2.1 - recommended"],
+      ["gemini-3-pro-image", "Nano Banana Pro - best quality"],
+      ["gemini-3.1-flash-lite-image", "Nano Banana 2 Lite - fastest, 1K only"],
+      ["gemini-2.5-flash-image", "Nano Banana (legacy)"]
+    ] }
+  ],
+  "capabilities": {
+    "keys": [{ "slot": "gemini", "service": "gemini", "label": "Gemini API key" }],
+    "network": ["generativelanguage.googleapis.com"],
+    "files": "readwrite"
+  }
+}

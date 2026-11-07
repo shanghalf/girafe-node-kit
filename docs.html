@@ -42,7 +42,7 @@
 <div class="wrap">
 <nav>
   <div class="brand">🦒 GIRAFE node kit</div>
-  <div class="ver">Technical documentation · kit 0.1.0 (+ main) · simulates GIRAFE 0.67.3 · host API 0</div>
+  <div class="ver">Technical documentation · kit 0.1.0 (+ main) · simulates GIRAFE 0.67.3 · host API 1</div>
   <a href="#overview">1. Overview</a>
   <a href="#install">2. Install and start</a>
   <a href="#layout">3. Files and folders</a>
@@ -207,8 +207,23 @@ docs.html               this document</code></pre>
   <li>It has <strong>no environment variables</strong>: no keys, no paths.</li>
   <li>It is killed after 60 seconds, and dies alone if it exceeds 128 MB.</li>
   <li>It talks to the kit only through <code>ctx</code>, whose calls are IPC messages handled by the host side in <code>plugins.js</code> (emit, progress, log, file read/write, each checked against the manifest's capabilities).</li>
-  <li>Not blocked yet: network access from a plugin (Node 22 can't restrict it). On GIRAFE it will be limited to the hosts the manifest declares.</li>
+  <li><strong>No network but <code>ctx.http</code>.</strong> Before the plugin's code loads, <code>sandbox-child.js</code> removes <code>fetch</code> (and <code>WebSocket</code>, <code>EventSource</code>) and locks Node's module loader so <code>http</code>, <code>https</code>, <code>http2</code>, <code>net</code>, <code>tls</code>, <code>dgram</code>, <code>dns</code>, <code>child_process</code>, <code>cluster</code>, <code>worker_threads</code>, <code>inspector</code>, <code>undici</code>, <code>module</code>, <code>vm</code>, <code>v8</code>, <code>repl</code> can't be loaded (also through <code>process.getBuiltinModule</code>). Node's permission flags already refuse native bindings and add-ons. This is a lock inside the process, not an operating-system firewall; GIRAFE will add a network-level one on its server.</li>
 </ul>
+<h3>Host API 1: key slots and ctx.http</h3>
+<p>A plugin that calls a service declares it in its manifest:</p>
+<pre><code>"capabilities": {
+  "keys": [{ "slot": "gemini", "service": "gemini", "label": "Gemini API key" }],
+  "network": ["generativelanguage.googleapis.com"]
+}</code></pre>
+<p>The panel shows one key picker per slot (the user's keys of that service). The node calls <code>ctx.http({ slot: "gemini", method, url, json })</code>; the host side in <code>plugins.js</code>:</p>
+<ol>
+  <li>checks the address is https and its host is in <code>network</code>;</li>
+  <li>refuses login headers set by the node (<code>authorization</code>, <code>x-api-key</code>, <code>x-goog-api-key</code>, <code>cookie</code>…);</li>
+  <li>with a slot: takes the key the user chose for it (<code>node.keySlots</code>), checks its service, adds the service's login header itself;</li>
+  <li>sends through <code>netguard.send()</code> (same checks and log as the core nodes, with purpose <em>plugin &lt;id&gt; · slot &lt;slot&gt;</em>);</li>
+  <li>returns <code>{ status, ok, json, text }</code> to the plugin. The key never crosses into the plugin's process.</li>
+</ol>
+<p>Manifests are checked: a slot's service must be <code>anthropic</code>, <code>openai</code> or <code>gemini</code> and its API host must be listed in <code>network</code>. Nodes written for host API 0 still run (<code>SUPPORTED_HOST_APIS</code>), without <code>ctx.http</code>. The first real plugin using it is <code>workspace/nodes/gemini-image</code> (GIRAFE's Generate image rebuilt as a plugin).</p>
 
 <h3 id="page">The page</h3>
 <p><code>web/app.js</code> builds the canvas with plain DOM and SVG: nodes (220 px cards, GIRAFE's classes and colours), wires (curves coloured by source, green when delivered, grey dashes when dead), pointer-event dragging, wheel zoom, the panel (fields from the kind or the plugin manifest), the Yes / No dock, the Keys dialog. Graphs autosave half a second after a change; Ctrl+Z undoes structural changes.</p>
@@ -239,6 +254,7 @@ docs.html               this document</code></pre>
   <li><strong>Checked by the guard</strong> (below), then sent.</li>
   <li><strong>Logged</strong>: time, purpose, key <em>label</em>, address, result. Never the key.</li>
 </ol>
+<p>Plugin nodes use the same path through a <strong>key slot</strong>: the user picks the key in the node's panel, and the host adds it to the plugin's <code>ctx.http</code> request. The plugin's process never receives the key (section 4, Host API 1).</p>
 <p>The paste step reports back: the server marks the network log before saving and counts after, and the dialog shows <em>"Key saved, nothing left this computer"</em> with the count (0) and the fingerprint. If anything had gone out meanwhile, the box turns red and points to the log.</p>
 
 <h3 id="key-store">Storage and encryption</h3>
@@ -277,7 +293,7 @@ Referrer-Policy: no-referrer</code></pre>
   <li><strong>The browser itself.</strong> An extension allowed on all sites can read what you type in any page, this one included. Paste keys in a browser profile without such extensions if in doubt.</li>
   <li><strong>Other programs</strong> on the computer, and anyone with access to your account.</li>
   <li><strong>The service itself</strong>: the key has to reach its own service to work. Use keys with spending limits where the service offers them.</li>
-  <li><strong>Plugin network access</strong> is not yet restricted (plugins have no keys, so they can't leak one, but they can reach the internet).</li>
+  <li><strong>Plugin network lock</strong> is inside the plugin's process (module loader and globals), not an operating-system firewall. Plugins never hold keys, so they have none to leak either way.</li>
 </ul>
 
 <h3 id="key-tests">How it's tested</h3>
@@ -289,7 +305,8 @@ Referrer-Policy: no-referrer</code></pre>
   <li>a key aimed at another address, put in the address, in the body or in a wrong header is blocked, and the fake server receives nothing;</li>
   <li>a <code>fetch</code> that bypasses the guard is caught as unexpected;</li>
   <li>the log never contains a key;</li>
-  <li>each service receives its key in its own login header only.</li>
+  <li>each service receives its key in its own login header only;</li>
+  <li>the gemini-image plugin gets its key added by the host, and its process has no <code>fetch</code>, no network module, and no way to set a login header or reach an undeclared host.</li>
 </ul>
 
 <h2 id="cache">6. Saved answers (cache)</h2>
@@ -305,7 +322,8 @@ Referrer-Policy: no-referrer</code></pre>
   <tr><th>Threat</th><th>Answer</th></tr>
   <tr><td>Another computer reaching the kit</td><td>Listens on 127.0.0.1 only.</td></tr>
   <tr><td>A website driving the kit (DNS rebinding, CSRF)</td><td>Host header must be localhost; writes with a foreign Origin refused.</td></tr>
-  <tr><td>A plugin reading files, keys, environment</td><td>Permission model (own folder, read only), empty environment, no keys in ctx.</td></tr>
+  <tr><td>A plugin reading files, keys, environment</td><td>Permission model (own folder, read only), empty environment, no keys in ctx (key slots are filled by the host).</td></tr>
+  <tr><td>A plugin calling the internet on its own</td><td>No fetch, network modules locked; <code>ctx.http</code> only to its declared hosts, through the guard.</td></tr>
   <tr><td>A runaway plugin</td><td>128 MB, 60 s, one process per firing.</td></tr>
   <tr><td>A key leaving for the wrong place</td><td>Network guard, watch, log, CSP (section 5).</td></tr>
   <tr><td>A tampered Node download</td><td>SHA-256 checked against nodejs.org's published list.</td></tr>
@@ -322,7 +340,7 @@ Referrer-Policy: no-referrer</code></pre>
   <tr><th>Number</th><th>Meaning</th></tr>
   <tr><td><code>KIT_VERSION</code></td><td>The kit itself.</td></tr>
   <tr><td><code>GIRAFE_VERSION</code></td><td>The GIRAFE release the kit simulates. A manifest's <code>"girafe": "&gt;=x.y.z"</code> is checked against it.</td></tr>
-  <tr><td><code>HOST_API</code></td><td>The plugin contract. A manifest's <code>hostApi</code> must equal it. Additions keep the number; a breaking change bumps it.</td></tr>
+  <tr><td><code>HOST_API</code></td><td>The plugin contract (1). A manifest's <code>hostApi</code> must be one of <code>SUPPORTED_HOST_APIS</code> (0 and 1). Additions keep the number; a breaking change bumps it, and the previous one stays supported for a while.</td></tr>
 </table>
 <p>Branches: <code>main</code> is development, <code>release</code> is what users download. Shipping a version: bump <code>KIT_VERSION</code> and <code>package.json</code>, add the <code>CHANGELOG.md</code> entry, then move <code>release</code> to that commit and tag it <code>vX.Y.Z</code>.</p>
 

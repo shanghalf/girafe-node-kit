@@ -1,5 +1,23 @@
 // Runs inside the sandboxed child process: loads the plugin and gives it ctx.
 // Everything ctx can do goes to the host over IPC; nothing else is reachable.
+// No way to the network but ctx.http: the network modules, the builtin-module getter and the
+// global fetch are taken away before the plugin's code loads. (Node's permission flags already
+// refuse native bindings, add-ons, processes, threads and disk writes.)
+const Module = require('module');
+const BLOCKED = new Set(['http', 'https', 'http2', 'net', 'tls', 'dgram', 'dns', 'child_process', 'cluster', 'worker_threads', 'inspector', 'undici', 'module', 'vm', 'v8', 'repl']);
+const realLoad = Module._load;
+const guardedLoad = function (request, ...rest) {
+  if (BLOCKED.has(String(request).replace(/^node:/, ''))) throw new Error(`"${request}" is not available to nodes. Use ctx.http, declared in the manifest's "network".`);
+  return realLoad.call(this, request, ...rest);
+};
+const lockModules = () => {
+  Object.defineProperty(Module, '_load', { value: guardedLoad, writable: false, configurable: false });
+  if (process.getBuiltinModule) Object.defineProperty(process, 'getBuiltinModule', { value: (id) => guardedLoad(id), writable: false, configurable: false });
+  for (const g of ['fetch', 'WebSocket', 'EventSource', 'XMLHttpRequest']) {
+    try { Object.defineProperty(globalThis, g, { value: undefined, writable: false, configurable: false }); } catch {}
+  }
+};
+
 let seq = 0;
 const waiting = new Map();
 
@@ -46,9 +64,11 @@ process.on('message', async (msg) => {
       write: (bytes, mime, name) => call('writeFile', { base64: Buffer.from(bytes).toString('base64'), mime, name }),
     },
     ai: { ask: () => call('ai', {}) },
-    http: () => call('key', {}),
+    // ctx.http({ slot?, method, url, headers?, json?, body? }) -> { status, ok, json?, text? }
+    http: (opts) => call('http', opts || {}),
   };
   try {
+    lockModules();
     const mod = require(msg.file);
     const run = typeof mod === 'function' ? mod : mod && mod.run;
     if (typeof run !== 'function') throw new Error('node.js must export run(ctx): module.exports = { async run(ctx) { ... } }');

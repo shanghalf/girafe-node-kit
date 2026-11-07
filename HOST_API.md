@@ -1,12 +1,12 @@
-# Host API 0
+# Host API 1
 
 The contract between GIRAFE and a plugin node. The kit implements the same contract
 as GIRAFE, so a node that works here works there. The plugin never touches GIRAFE's
 database, files or keys; everything goes through `ctx`.
 
-> **Status: draft.** Host API 0 is what the kit offers today. It will grow (AI calls,
-> HTTP with key slots). Additions keep the number; a change that breaks existing nodes
-> bumps it, and GIRAFE keeps running nodes written for the previous number for a while.
+> **Status: draft.** Host API 1 added key slots and `ctx.http`. Nodes written for host API 0
+> still run (`SUPPORTED_HOST_APIS` in `kit/version.js`). Additions keep the number; a change
+> that breaks existing nodes bumps it, and GIRAFE keeps the previous number running for a while.
 
 ## A plugin is a folder
 
@@ -26,7 +26,7 @@ The folder name is the node's id: lowercase letters, digits and dashes.
   "name": "My node",
   "version": "0.1.0",
   "description": "One sentence a user reads in the palette.",
-  "hostApi": 0,
+  "hostApi": 1,
   "girafe": ">=0.67.0",
   "icon": "🔠",
   "color": "#7bd389",
@@ -43,7 +43,7 @@ The folder name is the node's id: lowercase letters, digits and dashes.
 |---|---|
 | `id` | Same as the folder name. |
 | `version` | Your node's version, `major.minor.patch`. |
-| `hostApi` | The host API your code is written for. Must equal the GIRAFE's. |
+| `hostApi` | The host API your code is written for: 1 (0 still runs, without `ctx.http`). |
 | `girafe` | The oldest GIRAFE you need, as `>=x.y.z`. |
 | `inputs` | `min` / `max` input sockets. With `min: 1` the node is skipped when nothing arrives. `max: 0` = a starting node. |
 | `outputs` | Output socket names. `["out"]` for one; `["yes", "no"]` for named exits. |
@@ -57,8 +57,10 @@ The folder name is the node's id: lowercase letters, digits and dashes.
 | `"files": "read"` | `ctx.files.read(ref)`: the bytes of a picture or file that arrived on an input. |
 | `"files": "readwrite"` | Also `ctx.files.write(bytes, mime, name)`: make a new file and send its reference on. |
 
-Coming in later versions, declared the same way: `"network": ["api.example.com"]`,
-`"keys": [{ "slot": "tripo", "label": "Tripo API key" }]`, `"ai": true`.
+| `"network": ["api.example.com"]` | `ctx.http` to these hosts (https only). Nothing else on the internet. |
+| `"keys": [{ "slot": "gemini", "service": "gemini", "label": "Gemini API key" }]` | A key slot. The user picks which of their keys fills it in the node's panel; `ctx.http({ slot: "gemini", ... })` sends with that key added by the host. **Your code never sees the key.** Services: `anthropic`, `openai`, `gemini`; the service's API host must be in `network`. |
+
+Coming later, declared the same way: `"ai": true` (`ctx.ai.ask`), and more key services.
 
 ## node.js
 
@@ -92,6 +94,7 @@ module.exports = {
 | `ctx.isFile(v)` | `true` when `v` is a file reference. |
 | `await ctx.files.read(ref)` | `{ bytes: Buffer, mime }`. Needs `files: "read"`. |
 | `await ctx.files.write(bytes, mime, name)` | Returns a reference to send on. Needs `files: "readwrite"`. 25 MB max. |
+| `await ctx.http({ slot?, method, url, headers?, json?, body? })` | `{ status, ok, json, text }` (`json` when the answer is JSON, else `text`). https only, to a host in `network`. With `slot`, the host adds that key's login header. Login headers (`authorization`, `x-api-key`, `x-goog-api-key`…) can't be set by the node. 40 MB each way, 120 s. Sent through the kit's network guard and listed in 🔑 Keys > Network. |
 
 ### Values and files
 
@@ -127,5 +130,8 @@ Each firing runs in its own process, with:
 - `require` of Node's built-in modules works, as long as they stay inside these limits.
   Bundle any npm package you need into your folder (GIRAFE installs nothing for you).
 
-Network access is not blocked by the kit yet; on GIRAFE it is limited to the hosts your
-manifest declares. Don't rely on anything you didn't declare.
+**The network:** `ctx.http` is the only way out. Inside the node's process, `fetch` is gone and
+`http`, `https`, `net`, `tls`, `dns`, `child_process`, `worker_threads`, `module`, `vm` and the
+like can't be loaded. Native add-ons and bindings are refused by Node's permission flags.
+
+A full example using a key slot: `workspace/nodes/gemini-image/`.
