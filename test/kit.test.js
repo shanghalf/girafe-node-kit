@@ -91,4 +91,16 @@ test('a failing node stops only its own branch', async () => {
   assert.equal(rs.nodes.d.status, 'done');
 });
 
+test('flow socket: a node runs only when its flow wire delivers; one output feeds every wire', async () => {
+  const rs = await run({ nodes: [{ id: 'i', type: 'input', value: 'hello' }, { id: 'q', type: 'ask', prompt: 'go?' },
+    { id: 'u', type: 'plugin:upper' }, { id: 'v', type: 'plugin:upper' }, { id: 'c', type: 'collect' }],
+  wires: [{ id: 'w1', from: 'i', port: 'out', to: 'q' }, { id: 'w2', from: 'q', port: 'no', to: 'u', flow: true },
+    { id: 'w3', from: 'i', port: 'out', to: 'u' }, { id: 'w4', from: 'i', port: 'B', to: 'v' }, { id: 'w5', from: 'v', to: 'c' }] }, ['yes']);
+  assert.equal(rs.nodes.u.status, 'skipped');
+  assert.match(rs.nodes.u.note, /flow socket/);
+  assert.equal(rs.nodes.v.outputs[0], 'HELLO', 'a lettered output socket carries the node\'s output');
+  assert.equal(rs.wires.w2.state, 'dead');
+  assert.equal(rs.wires.w4.state, 'delivered');
+});
+
 test.after(() => fs.rmSync(WS, { recursive: true, force: true }));

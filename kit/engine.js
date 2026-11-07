@@ -5,6 +5,7 @@
 //    other inputs keep their single value for every firing
 //  - Collect waits for the whole stream and sends one list
 //  - a node whose inputs all stayed empty is skipped (and so is everything after it)
+//  - the square flow socket: when wired, the node runs only if something arrived on it
 // It runs every node of a level before the next one (GIRAFE streams item by item; the
 // results are the same, only the order of the progress lights differs).
 const crypto = require('crypto');
@@ -61,20 +62,28 @@ function createRun(graph, { onChange } = {}) {
       const n = byId.get(nid);
       const st = rs.nodes[nid];
       const kind = kindOf(n, pluginList);
-      const inWires = graph.wires.filter((w) => w.to === nid && byId.has(w.from));
-      const ports = inWires.map((w, i) => {
+      const fromSrc = (w) => {
         const src = produced.get(w.from) || { packets: {}, stream: false };
-        const port = w.port || 'out';
-        return { letter: letter(i), values: src.packets[port] || [], stream: src.stream };
-      });
+        // A node with one output sends it on every wire (sockets A, B... are just more wires);
+        // named outputs (Yes / No) send only on their own.
+        return { values: src.packets[w.port || 'out'] || (src.single ? src.packets[src.single] : null) || [], stream: src.stream };
+      };
+      const inWires = graph.wires.filter((w) => w.to === nid && byId.has(w.from) && !w.flow);
+      const flowWires = graph.wires.filter((w) => w.to === nid && byId.has(w.from) && w.flow);
+      const ports = inWires.map((w, i) => ({ letter: letter(i), ...fromSrc(w) }));
       const empty = (p) => p.values.length === 0;
-      const result = { packets: {}, stream: false };
+      const outs = kind.core ? kind.core.outputs : kind.plugin ? kind.plugin.outputs : ['out'];
+      const result = { packets: {}, stream: false, single: outs && outs.length === 1 ? outs[0] : null };
       const emit = (port, value) => { (result.packets[port] = result.packets[port] || []).push(value); };
       produced.set(nid, result);
 
       if (n.disabled) { st.status = 'skipped'; st.note = 'turned off'; changed(); continue; }
       if (kind.missing) { st.status = 'error'; st.note = `unknown node type "${n.type}" (plugin removed?)`; changed(); continue; }
       const needsInput = kind.core ? kind.core.needsInput : (kind.plugin.inputs?.min ?? 0) > 0;
+      // The square flow socket: wired, the node runs only if something reached it.
+      if (flowWires.length && flowWires.every((w) => fromSrc(w).values.length === 0)) {
+        st.status = 'skipped'; st.note = 'nothing reached its flow socket'; changed(); continue;
+      }
       if ((ports.length && ports.every(empty)) || (needsInput && !ports.length)) {
         st.status = 'skipped'; st.note = ports.length ? 'nothing arrived on its inputs' : 'nothing is wired into it'; changed(); continue;
       }
@@ -116,7 +125,10 @@ function createRun(graph, { onChange } = {}) {
         st.note = e.message;
         result.packets = {};
       }
-      for (const w of graph.wires.filter((x) => x.from === nid)) rs.wires[w.id] = { count: (result.packets[w.port || 'out'] || []).length };
+      for (const w of graph.wires.filter((x) => x.from === nid)) {
+        const count = (result.packets[w.port || 'out'] || (result.single ? result.packets[result.single] : null) || []).length;
+        rs.wires[w.id] = { count, state: count ? 'delivered' : 'dead' };
+      }
       changed();
     }
     rs.status = ctrl.signal.aborted ? 'stopped' : Object.values(rs.nodes).some((s) => s.status === 'error') ? 'error' : 'done';

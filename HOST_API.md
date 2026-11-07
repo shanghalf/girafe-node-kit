@@ -109,6 +109,10 @@ plugin. Never put file bytes in a value; write a file and send its reference.
 - Input sockets are lettered **A, B, C…** in the order the wires were drawn.
 - If an input comes from a **stream** (For each, or any node after one), the node fires
   **once per item**; inputs that are not streams give the same value every time.
+- Output sockets: a node with one output shows one lettered socket per wire (A, B…) plus an
+  empty one; they all carry the same output. Named outputs (`["yes", "no"]`) each have their own.
+- The square **flow socket** (on every node): when something is wired into it, the node runs only
+  if a packet arrives there (typically from a Yes / No exit). Left empty, it is ignored.
 - **Collect** waits for the whole stream and sends one JSON list.
 - A node whose wired inputs all stayed empty is **skipped**, and so is what comes after it.
 - An error stops that node only; its branch is skipped, the rest of the graph goes on.

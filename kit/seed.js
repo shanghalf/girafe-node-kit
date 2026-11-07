@@ -6,12 +6,12 @@ function ensureExample() {
   store.writeGraph('g-example', {
     title: 'Example: shout every word, keep the ones you like',
     nodes: [
-      { id: 'n1', type: 'input', x: 60, y: 120, title: 'Words', value: '["giraffe","plugin","sandbox"]' },
-      { id: 'n2', type: 'forEach', x: 340, y: 120, title: 'For each word' },
-      { id: 'n3', type: 'plugin:example-upper', x: 620, y: 120, title: 'Upper case', settings: { suffix: '!' } },
-      { id: 'n5', type: 'ask', x: 900, y: 120, title: 'Keep it?', prompt: 'Keep "{{A}}"?' },
-      { id: 'n6', type: 'collect', x: 1180, y: 40, title: 'Kept' },
-      { id: 'n7', type: 'collect', x: 1180, y: 260, title: 'Thrown away' },
+      { id: 'n1', type: 'input', x: 40, y: 120, title: 'Words', value: '["giraffe","plugin","sandbox"]' },
+      { id: 'n2', type: 'forEach', x: 320, y: 120, title: 'For each word' },
+      { id: 'n3', type: 'plugin:example-upper', x: 600, y: 120, title: 'Upper case', settings: { suffix: '!' } },
+      { id: 'n5', type: 'ask', x: 880, y: 120, title: 'Keep it?', prompt: 'Keep "{{A}}"?' },
+      { id: 'n6', type: 'collect', x: 1160, y: -20, title: 'Kept' },
+      { id: 'n7', type: 'collect', x: 1160, y: 260, title: 'Thrown away' },
     ],
     wires: [
       { id: 'w1', from: 'n1', port: 'out', to: 'n2' },
