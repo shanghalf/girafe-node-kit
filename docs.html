@@ -421,7 +421,7 @@ Referrer-Policy: no-referrer</code></pre>
 <ul>
   <li><strong>GIRAFE → kit</strong>: <code>GET &lt;girafe&gt;/api/kit/compat</code> (no login, no key) answers <code>{ girafeVersion, hostApi, hostApis, minKit, keyServices, kit: { repo, branch } }</code>. Every <code>/api/kit/</code> answer also carries <code>X-Girafe-Version</code> and <code>X-Girafe-Host-Apis</code>. The kit keeps the last answer in <code>workspace/.kit/compat.json</code> (10 minutes, and as "last known" when offline).</li>
   <li><strong>Kit → GIRAFE</strong>: every call to GIRAFE carries <code>X-Girafe-Kit-Version</code> and <code>X-Girafe-Kit-Host-Api</code>. GIRAFE answers <code>426 kit-outdated</code> to a kit below <code>minKit</code> (or that doesn't say: kits before 0.4.0) when it links or sends; revoking still works. Settings › Connected kits in GIRAFE shows each linked kit's version and marks an outdated one, and marks an installed node whose host API GIRAFE no longer runs (GIRAFE also refuses to run it, with the reason).</li>
-  <li><strong>The newest kit</strong>: the release branch's <code>package.json</code> on GitHub (<code>raw.githubusercontent.com</code>), checked once an hour.</li>
+  <li><strong>The newest kit</strong>: the release branch's <code>package.json</code>, checked once an hour. A git clone reads it with <code>git fetch &lt;remote&gt; release</code> + <code>git show FETCH_HEAD:package.json</code> (your own git login, so a private repository works; listed in the Network log as a git call; the working copy is not touched). Otherwise, or when git fails, from <code>raw.githubusercontent.com</code>, which answers 404 for a private repository.</li>
 </ul>
 <table>
   <tr><th>What the kit shows</th><th>When</th><th>Effect</th></tr>

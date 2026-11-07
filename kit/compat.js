@@ -13,6 +13,9 @@ const path = require('path');
 const store = require('./store');
 const netguard = require('./netguard');
 const version = require('./version');
+const { execFile } = require('child_process');
+
+const KIT_ROOT = path.join(__dirname, '..');
 
 const FILE = path.join(store.ROOT, '.kit', 'compat.json'); // the last answers, for offline starts
 const GIRAFE_TTL = 10 * 60_000;
@@ -27,13 +30,13 @@ const girafeBase = () => (process.env.KIT_GIRAFE_URL || 'https://girafe.live').r
 function updateSource(repo = DEFAULT_REPO, branch = DEFAULT_BRANCH) {
   if (process.env.KIT_UPDATE_URL) {
     const b = process.env.KIT_UPDATE_URL.replace(/\/$/, '');
-    return { packageUrl: `${b}/package.json`, zipUrl: `${b}/kit.zip`, label: b };
+    return { packageUrl: `${b}/package.json`, zipUrl: `${b}/kit.zip`, label: b, branch: DEFAULT_BRANCH };
   }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || !/^[A-Za-z0-9_./-]+$/.test(branch)) { repo = DEFAULT_REPO; branch = DEFAULT_BRANCH; }
   return {
     packageUrl: `https://raw.githubusercontent.com/${repo}/${branch}/package.json`,
     zipUrl: `https://codeload.github.com/${repo}/zip/refs/heads/${branch}`,
-    label: `github.com/${repo} (${branch})`,
+    label: `github.com/${repo} (${branch})`, repo, branch,
   };
 }
 
@@ -89,8 +92,20 @@ async function latest({ force = false, repo, branch } = {}) {
   const src = updateSource(repo, branch);
   const f = readFile();
   if (!force && f.latest && f.latest.src === src.label && Date.now() - f.latest.at < LATEST_TTL) return { ...f.latest, source: src };
+  // A git clone asks git: it uses your own git login, so a private repo works too.
+  let gitWhy = null;
+  if (!process.env.KIT_UPDATE_URL && fs.existsSync(path.join(KIT_ROOT, '.git'))) {
+    try {
+      const pkg = await gitLatest(src.branch);
+      if (!pkg || !isVer(pkg.version)) throw new Error('no version in package.json');
+      const info = { src: src.label, at: Date.now(), version: pkg.version, node: pkg.engines?.node || null, via: 'git' };
+      save({ latest: info });
+      return { ...info, source: src };
+    } catch (e) { gitWhy = e.message; }
+  }
   try {
     const r = await getJson(src.packageUrl, 'Check for a newer kit');
+    if (r.status === 404 && src.repo) throw new Error(`HTTP 404 - the repository is private or has no ${src.branch} branch. A kit installed with git clone checks with your git login instead${gitWhy ? ` (git said: ${gitWhy})` : ''}`);
     if (!r.ok || !r.data || !isVer(r.data.version)) throw new Error(`HTTP ${r.status}`);
     const info = { src: src.label, at: Date.now(), version: r.data.version, node: r.data.engines?.node || null };
     save({ latest: info });
@@ -99,6 +114,22 @@ async function latest({ force = false, repo, branch } = {}) {
     if (e instanceof netguard.Blocked) throw e;
     return { src: src.label, error: `Can't check for a newer kit (${src.label}): ${e.message}`, source: src };
   }
+}
+
+// git fetch <remote> <branch>, then read package.json from it. The remote is the one the
+// current branch pulls from (else origin). Nothing in the working copy changes.
+function runGit(args, timeout = 30_000) {
+  return new Promise((resolve, reject) => {
+    execFile('git', ['-C', KIT_ROOT, ...args], { timeout, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
+      (e, out, err) => (e ? reject(new Error(String(err || e.message).trim().split('\n').slice(-2).join(' '))) : resolve(String(out))));
+  });
+}
+async function gitLatest(branch) {
+  let remote = 'origin';
+  try { remote = (await runGit(['rev-parse', '--abbrev-ref', '@{u}'], 10_000)).trim().split('/')[0] || 'origin'; } catch { /* no upstream: origin */ }
+  netguard.note({ host: 'git remote', path: `${remote}/${branch}`, purpose: 'Check for a newer kit (git fetch)', result: 'started by the kit (git)' });
+  await runGit(['fetch', '--quiet', remote, `refs/heads/${branch}`]);
+  return JSON.parse(await runGit(['show', 'FETCH_HEAD:package.json'], 10_000));
 }
 
 // What GIRAFE would say about one node, from its manifest. null when it can be sent.

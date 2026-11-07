@@ -3,6 +3,12 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.5.1 (2026-11-07)
+
+- "Check for a newer kit" works with a private kit repository: a git clone now checks the
+  release branch with `git fetch` (your own git login) instead of an anonymous download, which
+  GitHub answers 404 for a private repository. No change for plugins.
+
 ## 0.5.0 (2026-11-07)
 
 - Host API 2 (still a draft, GIRAFE 0.69.0) gains what the rest of the Tripo pack needs:
