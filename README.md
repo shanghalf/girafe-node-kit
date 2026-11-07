@@ -6,7 +6,7 @@ real ones, run the graph and see what happens, with nothing sent anywhere.
 
 ## Start
 
-1. Download the kit as a ZIP (on GitHub: **Code › Download ZIP**) and unzip it anywhere.
+1. Download the kit: **[girafe-node-kit (latest release)](https://github.com/shanghalf/girafe-node-kit/archive/refs/heads/release.zip)**, and unzip it anywhere.
 2. Double-click the starter for your computer:
    - Windows: **Start GIRAFE kit (Windows).cmd**
    - Mac: **Start GIRAFE kit (Mac).command** (the first time, right-click it and choose **Open**, because it isn't from the App Store)
@@ -43,3 +43,8 @@ contract.
 
 AI calls, HTTP with key slots, and network limits come in later host API versions
 (see `CHANGELOG.md`).
+
+## Branches
+
+- `release`: the version people download. Each release is tagged (`v0.1.0`, ...) and listed in `CHANGELOG.md`.
+- `main`: work in progress. It may be broken at times; use `release` unless you're testing what's next.

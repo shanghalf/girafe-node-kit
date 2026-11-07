@@ -11,3 +11,10 @@ This repo is the GIRAFE node kit: a local simulator for building GIRAFE plugin n
   - a change to what plugins can do = a change to `HOST_API.md`, and to `kit/version.js` + `CHANGELOG.md` when it breaks existing nodes;
   - run `npm test` and check the page in a browser before calling it done.
 - `kit/version.js` holds the simulated GIRAFE version and the host API number. When GIRAFE moves on, update them and note it in `CHANGELOG.md`.
+
+## Branches and releases
+
+- `main` is development: commit and push there directly.
+- `release` is what users download (the README links its ZIP). Never commit to it directly.
+- To ship a version: set `KIT_VERSION` in `kit/version.js` and `version` in `package.json`, add the `CHANGELOG.md` entry, commit on `main`, then fast-forward `release` to that commit and tag it `vX.Y.Z` (both pushed).
+- Don't edit `workspace/nodes/example-upper` lightly: people copy it, and edits there conflict with their pulls.
