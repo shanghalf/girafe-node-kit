@@ -17,7 +17,8 @@ const store = require('./store');
 const keys = require('./keys');
 const netguard = require('./netguard');
 const pkgs = require('./package');
-const { KIT_VERSION } = require('./version');
+const { KIT_VERSION, HOST_API } = require('./version');
+const compat = require('./compat');
 
 const FILE = path.join(store.ROOT, '.kit', 'girafe.json');
 const base = () => (process.env.KIT_GIRAFE_URL || 'https://girafe.live').replace(/\/$/, '');
@@ -28,7 +29,8 @@ const read = () => { try { return JSON.parse(fs.readFileSync(FILE, 'utf8')); } c
 const write = (d) => { fs.mkdirSync(path.dirname(FILE), { recursive: true }); fs.writeFileSync(FILE, JSON.stringify(d, null, 2), { mode: 0o600 }); };
 
 async function post(route, body, { token, purpose } = {}) {
-  const headers = { 'content-type': 'application/json' };
+  // GIRAFE learns which kit is calling on every request (it refuses one that is too old).
+  const headers = { 'content-type': 'application/json', 'x-girafe-kit-version': KIT_VERSION, 'x-girafe-kit-host-api': String(HOST_API) };
   if (token) headers.authorization = `Bearer ${token}`;
   let res;
   try {
@@ -40,7 +42,8 @@ async function post(route, body, { token, purpose } = {}) {
   const text = await res.text();
   let data = {}; try { data = JSON.parse(text); } catch {}
   if (res.status === 404 && route.startsWith('/api/kit/')) throw Object.assign(new Error(`${new URL(base()).host} doesn't offer linking the kit yet. Everything else in the kit works without it.`), { status: 404 });
-  if (!res.ok) throw Object.assign(new Error(data.error || `GIRAFE answered HTTP ${res.status}`), { status: res.status });
+  if (data.compat) compat.remember(data.compat);
+  if (!res.ok) throw Object.assign(new Error(data.error || `GIRAFE answered HTTP ${res.status}`), { status: res.status, code: data.code || (res.status === 426 ? 'kit-outdated' : null) });
   return data;
 }
 
@@ -104,6 +107,9 @@ async function send(id) {
   const s = read();
   if (!s?.keyId) throw Object.assign(new Error('Connect to GIRAFE first.'), { needsLink: true });
   const packed = pkgs.pack(id);
+  // Said before anything leaves: a kit GIRAFE refuses, or a node it can't run.
+  const why = await compat.beforeSend(packed.manifest);
+  if (why) throw Object.assign(new Error(why.text), { code: why.code });
   const t = keys.use(s.keyId, 'girafe');
   try {
     const r = await post('/api/kit/packages', packed.pkg, { token: t.value, purpose: `Send "${id}" ${packed.version} to my GIRAFE` });

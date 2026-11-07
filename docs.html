@@ -42,7 +42,7 @@
 <div class="wrap">
 <nav>
   <div class="brand">🦒 GIRAFE node kit</div>
-  <div class="ver">Technical documentation · kit 0.3.0 · simulates GIRAFE 0.69.0 · host API 2</div>
+  <div class="ver">Technical documentation · kit 0.4.0 · simulates GIRAFE 0.69.0 · host API 2</div>
   <a href="#overview">1. Overview</a>
   <a href="#install">2. Install and start</a>
   <a href="#layout">3. Files and folders</a>
@@ -68,6 +68,8 @@
   <a href="#security">7. Security summary</a>
   <a href="#testing">8. Tests</a>
   <a href="#versions">9. Versions and releases</a>
+  <a class="sub" href="#compat">Kit and GIRAFE: matching versions</a>
+  <a class="sub" href="#update">Update the kit</a>
   <a href="#maintain">10. Keeping this document current</a>
 </nav>
 <main>
@@ -97,13 +99,14 @@
 <ol>
   <li>uses the computer's Node.js if it is version 22 or newer;</li>
   <li>otherwise downloads Node <code>22.22.0</code> from <code>nodejs.org/dist</code> into <code>.runtime/</code> inside the kit, checks its SHA-256 against nodejs.org's <code>SHASUMS256.txt</code> (a mismatch deletes the file and stops), unpacks it;</li>
-  <li>runs <code>node kit.js</code>, which starts the server and opens the browser on <code>http://localhost:4747</code> (the next free port if taken).</li>
+  <li>runs <code>node kit.js</code>, which starts the kit as a child process and watches it (see <a href="#update">Update the kit</a>); the kit opens the browser on <code>http://localhost:4747</code> (the next free port if taken).</li>
 </ol>
 <p>The Windows starter is a <code>.cmd</code> calling PowerShell with <code>-ExecutionPolicy Bypass</code> for that one script. Windows (SmartScreen) and macOS (Gatekeeper) warn on first open because the files are not code-signed.</p>
 <h3>For developers</h3>
 <pre><code>node kit.js            # start and open the browser
 node kit.js --no-open  # start only
 PORT=5000 node kit.js  # another port
+node kit.js --no-watch # run the kit in this process (no restart after an update)
 npm test               # the kit's tests</code></pre>
 <p>Node 22+ is required: the plugin sandbox uses the <code>--permission</code> flag.</p>
 
@@ -167,6 +170,8 @@ docs.html               this document</code></pre>
 <table>
   <tr><th>Route</th><th>Does</th></tr>
   <tr><td><code>GET /api/info</code></td><td>Kit version, simulated GIRAFE version, host API, workspace path.</td></tr>
+  <tr><td><code>GET /api/compat</code> (<code>?force=1</code>)</td><td>Kit and GIRAFE versions, what doesn't match, the newest kit, how this kit updates (<code>kit/compat.js</code>, <code>kit/updater.js</code>).</td></tr>
+  <tr><td><code>POST /api/update</code></td><td>Update the kit: git pull, or the release zip swapped in; then a restart.</td></tr>
   <tr><td><code>GET /api/kinds</code></td><td>Core node kinds and plugin nodes (with manifest problems).</td></tr>
   <tr><td><code>GET/POST /api/graphs</code>, <code>GET/POST/DELETE /api/graphs/:id</code></td><td>List, create, read, save, delete test graphs (JSON files).</td></tr>
   <tr><td><code>GET /api/keys</code>, <code>POST /api/keys</code>, <code>DELETE /api/keys/:id</code></td><td>Key bank: list (masked), add (the paste step), remove.</td></tr>
@@ -349,6 +354,7 @@ Referrer-Policy: no-referrer</code></pre>
 <h3 id="send">Send to my GIRAFE</h3>
 <p><strong>☁️ Send to my GIRAFE</strong> (or <em>Connect and send</em> when not linked) packs the node and sends it: <code>POST /api/kit/packages</code>, body = the package, <code>Authorization: Bearer &lt;token&gt;</code>. GIRAFE answers <code>{ status: installed | updated, message }</code>, refuses a version that isn't higher than the one in the account (409), and a 401 means the link was revoked: the kit drops it and asks to connect again. Each send is in the Network log as <em>Send "&lt;id&gt;" &lt;version&gt; to my GIRAFE</em>.</p>
 <p><strong>In GIRAFE</strong> (from GIRAFE 0.68.0, open to admin accounts first): the node appears in the Promptmixer palette under <em>Your plugin nodes</em>, on every device of that account and for nobody else. GIRAFE checks the package again (file hashes, signature), pins the author key per node id, keeps every version (Settings › Connected kits: pick a version to roll back, turn it off, remove it, cut a kit's link) and runs the node in the same kind of locked child process as the kit. Key slots are filled from GIRAFE's own Key bank; GIRAFE adds the key to the call itself, only toward that service's official host. A plugin node doesn't run in a graph shared with someone else.</p>
+<p>Before sending, the kit asks GIRAFE what it runs (<a href="#compat">below</a>) and refuses itself, with the reason, a node GIRAFE can't run: nothing is sent. GIRAFE checks again on arrival: <code>426 { code: "kit-outdated" }</code> for a kit older than it accepts, <code>409 { code: "host-api" | "girafe-version" }</code> for a node it can't run; both carry its compat answer.</p>
 <p>Local test against a GIRAFE on your own machine: start the kit with <code>KIT_GIRAFE_URL=http://localhost:3003</code>. The link page may then be on another port of the same machine (the kit compares host names, not ports).</p>
 
 <h2 id="github">6c. Your nodes on GitHub</h2>
@@ -391,7 +397,7 @@ Referrer-Policy: no-referrer</code></pre>
 
 <h2 id="testing">8. Tests</h2>
 <pre><code>npm test     # node --test test/*.test.js</code></pre>
-<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. <code>test/host-api-2.test.js</code>: long runs, <code>ctx.state</code> kept per node across processes, a form carrying an input picture, a download kept as a file with no key sent, a host outside <code>network</code> refused, wildcard hosts, the tripo key as a Bearer token. <code>test/github.test.js</code>: against a fake GitHub storing real git objects: connect checks, first save, only the node folder uploaded, changed / behind / conflict, backups, the key scan (nothing sent), history and restore, the token only in the header to GitHub. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
+<p><code>test/link.test.js</code>: packing and its checks (a changed file, a changed hash, a <code>../</code> path are caught; no private key in a package), the device link (token stored encrypted, never shown), sending (token only in the header, same version refused, raised version updates), revoked and denied links. <code>test/kit.test.js</code>: engine rules (streams, letters, named outputs, Yes / No, skips, flow socket), the sandbox (no reading outside, no writing, no environment), manifest version checks. <code>test/ai.test.js</code>: Prompt, Generate image, cache, keys and the network guard. <code>test/host-api-2.test.js</code>: long runs, <code>ctx.state</code> kept per node across processes, a form carrying an input picture, a download kept as a file with no key sent, a host outside <code>network</code> refused, wildcard hosts, the tripo key as a Bearer token. <code>test/versions.test.js</code>: compat both ways against a fake GIRAFE (behind, kit too old, old GIRAFE, offline), a node refused before sending, the zip reader, an update end to end with a rollback, git pull and rollback. <code>test/github.test.js</code>: against a fake GitHub storing real git objects: connect checks, first save, only the node folder uploaded, changed / behind / conflict, backups, the key scan (nothing sent), history and restore, the token only in the header to GitHub. Each suite uses a throwaway workspace. Changes to the page are also checked in a real browser before being pushed.</p>
 
 <h2 id="versions">9. Versions and releases</h2>
 <p>Three numbers, in <code>kit/version.js</code>:</p>
@@ -401,6 +407,33 @@ Referrer-Policy: no-referrer</code></pre>
   <tr><td><code>GIRAFE_VERSION</code></td><td>The GIRAFE release the kit simulates. A manifest's <code>"girafe": "&gt;=x.y.z"</code> is checked against it.</td></tr>
   <tr><td><code>HOST_API</code></td><td>The plugin contract (2). A manifest's <code>hostApi</code> must be one of <code>SUPPORTED_HOST_APIS</code> (0, 1 and 2). A change an older GIRAFE can't run bumps it (host API 2 added long runs, state and downloads); the previous ones stay supported for a while.</td></tr>
 </table>
+<h3 id="compat">Kit and GIRAFE: matching versions</h3>
+<p>Both sides know the other's version, and each says plainly what doesn't match.</p>
+<ul>
+  <li><strong>GIRAFE → kit</strong>: <code>GET &lt;girafe&gt;/api/kit/compat</code> (no login, no key) answers <code>{ girafeVersion, hostApi, hostApis, minKit, keyServices, kit: { repo, branch } }</code>. Every <code>/api/kit/</code> answer also carries <code>X-Girafe-Version</code> and <code>X-Girafe-Host-Apis</code>. The kit keeps the last answer in <code>workspace/.kit/compat.json</code> (10 minutes, and as "last known" when offline).</li>
+  <li><strong>Kit → GIRAFE</strong>: every call to GIRAFE carries <code>X-Girafe-Kit-Version</code> and <code>X-Girafe-Kit-Host-Api</code>. GIRAFE answers <code>426 kit-outdated</code> to a kit below <code>minKit</code> (or that doesn't say: kits before 0.4.0) when it links or sends; revoking still works. Settings › Connected kits in GIRAFE shows each linked kit's version and marks an outdated one, and marks an installed node whose host API GIRAFE no longer runs (GIRAFE also refuses to run it, with the reason).</li>
+  <li><strong>The newest kit</strong>: the release branch's <code>package.json</code> on GitHub (<code>raw.githubusercontent.com</code>), checked once an hour.</li>
+</ul>
+<table>
+  <tr><th>What the kit shows</th><th>When</th><th>Effect</th></tr>
+  <tr><td>⛔ Update the kit</td><td>This kit is older than GIRAFE's <code>minKit</code></td><td>Sending is refused until the kit is updated.</td></tr>
+  <tr><td>⚠️ Versions — GIRAFE is behind</td><td>The kit builds for a host API GIRAFE doesn't run yet (now: kit host API 2, GIRAFE 0.68 runs 0 and 1)</td><td>Nodes written for a host API GIRAFE runs can be sent; the others are refused in the kit, with the reason, in the node's Share box.</td></tr>
+  <tr><td>⚠️ Versions — the kit is behind</td><td>GIRAFE no longer runs the kit's host API</td><td>Update the kit; nodes need moving to the new host API (CHANGELOG.md says how).</td></tr>
+  <tr><td>⬆ Kit x.y.z</td><td>A newer kit is on the release branch</td><td>Optional update.</td></tr>
+  <tr><td>(info only)</td><td>GIRAFE is newer than the simulated one, GIRAFE doesn't say its version (before 0.68.3), offline</td><td>Nothing blocked; GIRAFE checks each node on arrival.</td></tr>
+</table>
+<p>Per node, before sending (<code>compat.checkNode</code>): its <code>hostApi</code> must be one GIRAFE runs, its <code>"girafe": "&gt;=x"</code> must be met by GIRAFE's real version, and each key slot's service must be one GIRAFE offers.</p>
+
+<h3 id="update">Update the kit</h3>
+<p><strong>🔄 Versions and updates</strong> (the version badge, the alert button, or the Versions box) shows both sides and offers <strong>⬆ Update the kit</strong> (<code>kit/updater.js</code>):</p>
+<ul>
+  <li><strong>A git clone</strong> (a <code>.git</code> folder): <code>git pull --ff-only</code> on its own branch, only when none of the kit's own files are changed (the dialog lists them otherwise) and the branch has an upstream. git runs as its own program; the kit logs it in the Network list.</li>
+  <li><strong>A downloaded zip</strong>: the release branch's zip from <code>codeload.github.com</code>, through the network guard (no key, 40 MB at most). Checked before anything changes: one top folder, no <code>..</code> or absolute names, CRC of every file (<code>kit/zip.js</code>, no dependency), <code>package.json</code> and <code>kit/version.js</code> agree on a version newer than this one, the Node version it needs is met. Unpacked to <code>workspace/.kit/update/staged-…</code>, the kit's current files copied to <code>workspace/.kit/update/backup-&lt;version&gt;-…</code> (the two newest kept), then swapped in. A failure while swapping puts the backup back at once.</li>
+  <li><strong>Never touched</strong>: <code>workspace/</code> (nodes, graphs, keys, files, settings), <code>.runtime/</code> (the private Node), <code>.git/</code>, <code>node_modules/</code>.</li>
+  <li><strong>Restart and roll back</strong>: <code>kit.js</code> is a small watcher that runs the kit as a child process. After an update the kit exits with code 75; the watcher starts it again on the same port and the page reloads by itself. The new kit marks the update as kept once it listens (<code>workspace/.kit/update/last.json</code>). If it stops before that, the watcher puts the backup back (or <code>git reset --hard</code> to the previous commit) and starts the previous version; the page then says the update was put back. The watcher itself is the copy that was running, so keep <code>pending.json</code>'s shape compatible across versions.</li>
+</ul>
+<p>Tested end to end (<code>test/versions.test.js</code>): a copy of the kit updated from a fake release while running, restarted on it with the workspace intact, then a release that crashes on start put back by itself; a git clone pulled and rolled back; a clone with changed kit files refused.</p>
+
 <p>Branches: <code>main</code> is development, <code>release</code> is what users download. Shipping a version: bump <code>KIT_VERSION</code> and <code>package.json</code>, add the <code>CHANGELOG.md</code> entry, then move <code>release</code> to that commit and tag it <code>vX.Y.Z</code>.</p>
 
 <h2 id="maintain">10. Keeping this document current</h2>

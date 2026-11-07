@@ -14,6 +14,8 @@ const gemini = require('./ai/gemini-image');
 const netguard = require('./netguard');
 const pkgs = require('./package');
 const link = require('./girafe-link');
+const compat = require('./compat');
+const updater = require('./updater');
 const github = require('./github');
 
 const WEB = path.join(__dirname, '..', 'web');
@@ -56,6 +58,15 @@ async function handle(req, res) {
   if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'cross-site request refused' });
 
   if (req.method === 'GET' && p === '/api/info') return send(res, 200, { kit: version.KIT_VERSION, girafe: version.GIRAFE_VERSION, hostApi: version.HOST_API, workspace: store.ROOT });
+  // Versions both ways (kit/compat.js) and "Update the kit" (kit/updater.js).
+  if (req.method === 'GET' && p === '/api/compat') {
+    try { return send(res, 200, { ...(await compat.status({ force: url.searchParams.get('force') === '1' })), update: { ...updater.info(), ...(await updater.method()) } }); }
+    catch (e) { return send(res, e instanceof netguard.Blocked ? 403 : 502, { error: e.message }); }
+  }
+  if (req.method === 'POST' && p === '/api/update') {
+    try { return send(res, 200, await updater.start()); }
+    catch (e) { return send(res, e.code === 'cannot-update' ? 409 : 502, { error: e.message, code: e.code || null }); }
+  }
   if (req.method === 'GET' && p === '/api/kinds') return send(res, 200, { core: core.describe(), plugins: plugins.listPlugins() });
 
   if (req.method === 'GET' && p === '/api/graphs') return send(res, 200, { graphs: store.listGraphs() });
@@ -110,7 +121,7 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === '/api/girafe/disconnect') return send(res, 200, await link.disconnect());
   if (req.method === 'POST' && p === '/api/girafe/send') {
     const { id } = await readJson(req);
-    try { return send(res, 200, await link.send(String(id || ''))); } catch (e) { return send(res, e.needsLink ? 409 : 400, { error: e.message, needsLink: !!e.needsLink }); }
+    try { return send(res, 200, await link.send(String(id || ''))); } catch (e) { return send(res, e.needsLink ? 409 : e.code ? 409 : 400, { error: e.message, needsLink: !!e.needsLink, code: e.code || null }); }
   }
 
   // Your nodes on GitHub (kit/github.js). Errors say what to do; a secret found stops a save.

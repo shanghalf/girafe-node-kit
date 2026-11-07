@@ -16,7 +16,7 @@ const el = (tag, attrs = {}, ...kids) => {
 const api = async (path, opts = {}) => {
   const r = await fetch(path, { ...opts, headers: { ...(opts.body && typeof opts.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) } });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { code: data.code || null, status: r.status });
   return data;
 };
 const uid = (p) => p + Math.random().toString(36).slice(2, 9);
@@ -578,12 +578,17 @@ function packBox(k) {
     if (!S.link?.connected) return openLink(() => sendIt());
     say(`Sending ${k.name} ${k.version} to your GIRAFE…`);
     try { const r = await api('/api/girafe/send', { method: 'POST', body: JSON.stringify({ id: k.id }) }); say(`✓ ${r.message || `${k.name} ${r.version} is in your GIRAFE account.`}`); }
-    catch (e) { say('⚠️ ' + e.message); if (/Connect/.test(e.message)) loadLink(); }
+    catch (e) {
+      say('⚠️ ' + e.message); if (/Connect/.test(e.message)) loadLink();
+      if (e.code) loadCompat(); // GIRAFE said something about versions: show it in the top bar too
+      if (e.code === 'kit-outdated') for (const n of document.querySelectorAll(`[data-pack="${k.id}"]`)) n.append(' ', el('button', { class: 'primary', text: '⬆ Update the kit', onclick: () => openVersions() }));
+    }
   };
   return el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Share this node' }),
     el('div', { class: 'row' }, el('button', { text: '📦 Pack', title: 'Make a signed .gnode file of this node', onclick: pack }),
       el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send to my GIRAFE' : '☁️ Connect and send to my GIRAFE', onclick: sendIt })),
-    el('div', { class: 'caps', text: `Version ${k.version}. GIRAFE accepts each version once: raise "version" in manifest.json before sending a change.` }), out);
+    el('div', { class: 'caps', text: `Version ${k.version}. GIRAFE accepts each version once: raise "version" in manifest.json before sending a change.` }),
+    S.compat?.girafe?.hostApis && !S.compat.girafe.hostApis.includes(k.hostApi) ? el('div', { class: 'v-prob warn', text: `Written for host API ${k.hostApi}; GIRAFE ${S.compat.girafe.version} runs host API ${S.compat.girafe.hostApis.join(' and ')}. It can't be sent until they match.` }) : null, out);
 }
 function openLink(after) {
   const ov = $('#keysDialog');
@@ -760,7 +765,9 @@ function graphPanel() {
     el('p', { class: 'desc', text: 'Build a node, wire it between core nodes, run the graph. Everything runs on this machine; nothing goes to GIRAFE.' }),
     el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Versions' }),
       el('div', { class: 'caps', text: `Simulated GIRAFE ${i.girafe} · host API ${i.hostApi} · kit ${i.kit}` }),
-      el('div', { class: 'caps', text: 'A plugin names the host API and the oldest GIRAFE it works with in its manifest. When GIRAFE moves on, update the kit.' })),
+      el('div', { class: 'caps', text: S.compat?.girafe?.version ? `GIRAFE (${new URL(S.compat.girafe.base).host}) is ${S.compat.girafe.version} · runs host API ${S.compat.girafe.hostApis.join(', ')} · needs kit ${S.compat.girafe.minKit}+` : 'GIRAFE\'s own version: not known yet.' }),
+      ...(S.compat?.problems || []).filter((x) => x.level !== 'info' || x.code === 'update-available').map((x) => el('div', { class: 'v-prob ' + x.level, text: x.text })),
+      el('div', { class: 'row' }, el('button', { text: '🔄 Versions and updates', onclick: () => openVersions() }))),
     el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Start a node' }),
       el('div', { class: 'caps' }, 'Copy ', el('code', { text: 'workspace/nodes/example-upper' }), ' to a new folder, change its id in manifest.json, edit node.js. Read ', el('code', { text: 'HOST_API.md' }), '.')),
     el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Keys' }),
@@ -830,6 +837,70 @@ async function deleteGraph() {
   if (!graphs.length) await newGraph(); else await loadGraphList(graphs[0].id);
 }
 
+// ---------- versions: kit <-> GIRAFE, and "Update the kit" (kit/compat.js, kit/updater.js) ----------
+S.compat = null;
+async function loadCompat(force) {
+  try { S.compat = await api('/api/compat' + (force ? '?force=1' : '')); } catch { return; }
+  const c = S.compat;
+  const worst = c.problems.find((x) => x.level === 'block') ? 'block' : c.problems.find((x) => x.level === 'warn') ? 'warn' : c.updateAvailable ? 'update' : null;
+  const b = $('#versionAlert');
+  b.hidden = !worst;
+  b.className = 'version-alert' + (worst ? ' v-' + worst : '');
+  b.textContent = worst === 'block' ? '⛔ Update the kit' : worst === 'warn' ? '⚠️ Versions' : worst === 'update' ? `⬆ Kit ${c.latest.version}` : '';
+  b.title = c.problems.filter((x) => x.level !== 'info' || x.code === 'update-available').map((x) => x.text).join('\n');
+  const last = c.update?.last;
+  if (last && !last.seen && last.at && Date.now() - Date.parse(last.at) < 5 * 60_000 && !S.lastShown) { S.lastShown = true; flash(last.ok ? `✓ Updated from kit ${last.from} to ${last.to}` : `⚠️ ${last.error}`); }
+  if (!$('#panel').contains(document.activeElement)) renderPanel();
+}
+function openVersions() {
+  let close = () => {};
+  const draw = (note) => {
+    const c = S.compat || { kit: {}, girafe: {}, problems: [], update: {} };
+    const u = c.update || {};
+    const rows = [['This kit', `${c.kit.version} · builds nodes for host API ${c.kit.hostApi} (accepts ${(c.kit.hostApis || []).join(', ')}) · simulates GIRAFE ${c.kit.simulates}`],
+      ['GIRAFE', c.girafe?.version ? `${c.girafe.version} on ${new URL(c.girafe.base).host} · runs host API ${c.girafe.hostApis.join(', ')} · works with kit ${c.girafe.minKit} or newer${c.girafe.stale ? ' (last known, offline)' : ''}` : 'not known (offline, or a GIRAFE that doesn\'t say)'],
+      ['Newest kit', c.latest ? `${c.latest.version} (${c.latest.from})` : 'not known'],
+      ['Updates by', u.mode === 'git' ? 'git pull (this kit is a git clone)' : 'downloading the release from GitHub (your workspace is never touched)'],
+      ['Node', c.kit.node]];
+    const last = u.last;
+    const body = [el('div', { class: 'v-table' }, ...rows.flatMap(([a, b]) => [el('span', { text: a }), el('span', { text: b })])),
+      ...(c.problems.length ? c.problems.map((x) => el('div', { class: 'v-prob ' + x.level, text: x.text })) : [el('div', { class: 'v-prob info', text: 'The kit and GIRAFE match. Nothing to do.' })]),
+      last ? el('div', { class: 'muted', text: last.ok ? `Last update: kit ${last.from} → ${last.to}, ${String(last.at).slice(0, 16).replace('T', ' ')}.` : `Last update: ${last.error}` }) : null,
+      u.ready === false ? el('div', { class: 'v-prob warn', text: u.why }) : null,
+      !u.supervised ? el('div', { class: 'muted', text: 'Started without its watcher (--no-watch): after an update, close the kit and start it again yourself.' }) : null,
+      note ? el('div', { class: note.bad ? 'problems' : 'muted', text: note.text }) : null,
+      el('div', { class: 'row', style: { marginTop: '10px' } },
+        el('button', { text: '🔄 Check again', onclick: async () => { draw({ text: 'Checking…' }); await loadCompat(true); draw(); } }),
+        el('button', { class: 'primary', text: u.mode === 'git' ? '⬆ Update the kit (git pull)' : `⬆ Update the kit${c.latest && c.updateAvailable ? ' to ' + c.latest.version : ''}`, disabled: u.ready === false || u.busy || (u.mode !== 'git' && !c.updateAvailable), onclick: () => runUpdate(draw) })),
+      el('div', { class: 'caps', text: 'Before replacing anything, the kit copies its current files to workspace/.kit/update/. If the new version does not start, it puts them back by itself. Your nodes, graphs, keys and files (workspace/) are never touched.' })];
+    close = dialog('🔄 Versions and updates', ...body);
+  };
+  draw();
+  loadCompat(true).then(() => draw());
+}
+async function runUpdate(draw) {
+  const before = S.info.kit;
+  draw({ text: 'Updating… (downloading and checking)' });
+  let r;
+  try { r = await api('/api/update', { method: 'POST' }); } catch (e) { return draw({ text: '⚠️ ' + e.message, bad: true }); }
+  if (r.upToDate) { await loadCompat(true); return draw({ text: `Already up to date (kit ${r.version}).` }); }
+  if (r.restart !== 'auto') return draw({ text: `Kit ${r.to} is in place. Close the kit and start it again to use it.` });
+  const ov = $('#keysDialog');
+  ov.replaceChildren(el('div', { class: 'dialog' }, el('div', { class: 'v-restart' }, el('h3', { text: `Restarting on kit ${r.to}…` }), el('div', { class: 'muted', id: 'restartNote', text: 'This page reloads by itself in a few seconds.' }))));
+  ov.hidden = false;
+  const t0 = Date.now();
+  const wait = async () => {
+    try {
+      const i = await (await fetch('/api/info', { cache: 'no-store' })).json();
+      if (i.kit && i.kit !== before) return location.reload();
+      if (i.kit === before && Date.now() - t0 > 8000) return location.reload(); // put back: the reload shows why
+    } catch { /* restarting */ }
+    if (Date.now() - t0 > 90_000) { $('#restartNote').textContent = 'The kit did not come back. Start it again (double-click the starter).'; return; }
+    setTimeout(wait, 1000);
+  };
+  setTimeout(wait, 1500);
+}
+
 // ---------- start ----------
 (async function start() {
   S.info = await api('/api/info');
@@ -852,6 +923,10 @@ async function deleteGraph() {
   setInterval(() => loadGitHub(), 5000);
   setInterval(() => { if (S.gh?.connected && !document.hidden) loadGitHub({ remote: true }); }, 120000);
   if (S.gh?.connected) loadGitHub({ remote: true });
+  $('#versionAlert').addEventListener('click', () => openVersions());
+  $('#versionBadge').addEventListener('click', () => openVersions());
+  loadCompat();
+  setInterval(() => { if (!document.hidden) loadCompat(); }, 30 * 60_000);
   $('#reloadKinds').addEventListener('click', () => loadKinds().then(render));
   window.addEventListener('focus', () => loadKinds().then(render));
   const { graphs } = await api('/api/graphs');

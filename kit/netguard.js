@@ -88,8 +88,12 @@ dc.subscribe('http.client.request.start', ({ request }) => {
 const mark = () => ({ seq, unexpected: stats.unexpected });
 const since = (m) => ({ internet: log.filter((e) => e.n > m.seq && e.result !== 'blocked').length, unexpected: stats.unexpected - m.unexpected });
 
+// A request the kit started outside this process (git pull for "Update the kit"): logged, so
+// the Network list shows it too. It never carries a key.
+function note(e) { push({ host: String(e.host || ''), path: String(e.path || ''), purpose: String(e.purpose || ''), service: null, key: null, result: String(e.result || 'started') }); }
+
 function report() {
   return { stats: { ...stats }, log: log.slice(-100).reverse(), hosts: Object.fromEntries(Object.keys(OFFICIAL).map((s) => [s, hostsFor(s)])) };
 }
 
-module.exports = { send, mark, since, report, Blocked, AUTH_HEADER, hostsFor };
+module.exports = { send, note, mark, since, report, Blocked, AUTH_HEADER, hostsFor };

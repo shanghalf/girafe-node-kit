@@ -78,7 +78,7 @@ function pack(id) {
   fs.mkdirSync(OUT, { recursive: true });
   const name = `${id}-${manifest.version}.gnode`;
   fs.writeFileSync(path.join(OUT, name), JSON.stringify(pkg));
-  return { name, file: path.join(OUT, name), size: Buffer.byteLength(JSON.stringify(pkg)), hash, version: manifest.version, pkg };
+  return { name, file: path.join(OUT, name), size: Buffer.byteLength(JSON.stringify(pkg)), hash, version: manifest.version, manifest, pkg };
 }
 
 // The checks GIRAFE runs on an upload (also usable by anyone holding a .gnode).

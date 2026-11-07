@@ -3,6 +3,21 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.4.0 (2026-11-07)
+
+- **Kit and GIRAFE check each other's version.** The kit asks GIRAFE what it runs
+  (`/api/kit/compat`) and says what doesn't match: ⛔ the kit is too old for GIRAFE (sending
+  refused), ⚠️ GIRAFE doesn't run this host API yet (such nodes are refused in the kit, with the
+  reason, before anything is sent), ⬆ a newer kit exists. GIRAFE (0.68.3) refuses a kit older
+  than 0.4.0 with 426, and a node it can't run with a clear 409.
+- **🔄 Versions and updates → ⬆ Update the kit**: a git clone pulls; a downloaded kit gets the
+  release zip, checked, with the current files backed up first. The kit restarts by itself on
+  the new version and goes back to the previous one if the new one doesn't start. Your
+  `workspace/` is never touched.
+- `kit.js` now runs the kit as a child process and watches it (`--no-watch` to run it in one
+  process).
+- Kits before 0.4.0 can no longer link or send to GIRAFE 0.68.3+: download the kit again once.
+
 ## 0.3.0 (2026-11-07)
 
 - **Host API 2**, simulating GIRAFE 0.69.0 (not released yet: nodes written for host API 2 run

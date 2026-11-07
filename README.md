@@ -61,6 +61,14 @@ In a plugin node's panel:
   only you see it. The first time, **Connect to GIRAFE** opens girafe.live: log in (or create an
   account) there and click Allow. The kit never sees your password, and works fine unconnected.
 
+## Updates
+
+The kit and GIRAFE check each other's version. When they don't match, a button at the top says
+so (⛔ the kit is too old for GIRAFE, ⚠️ GIRAFE doesn't run this kind of node yet, ⬆ a newer kit).
+**🔄 Versions and updates → ⬆ Update the kit** downloads the new version, keeps a copy of the old
+one, restarts and goes back by itself if the new one doesn't start. Your nodes, graphs and keys
+(`workspace/`) are never touched. A git clone is updated with `git pull`.
+
 ## What's inside
 
 | | |
@@ -68,7 +76,7 @@ In a plugin node's panel:
 | Canvas | Drag nodes, drag from an output dot to wire, right-click to add, Delete to remove, Ctrl+Z to undo, wheel to zoom. |
 | Core nodes | Input, Image, For each, Yes / No, Collect: they behave like GIRAFE's. |
 | Your nodes | Each firing runs in its own sandboxed process: its own folder only, no disk writes, no environment, 128 MB, 60 s. |
-| Versions | The badge shows the GIRAFE version the kit simulates and the host API number. Your manifest names both. |
+| Versions | The badge shows the GIRAFE version the kit simulates and the host API number; click it to compare with your GIRAFE and update the kit. Your manifest names both. |
 
 ## Not yet
 

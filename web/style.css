@@ -192,3 +192,16 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .pm-model-tile { display: grid; place-items: center; font-size: 22px; background: var(--bg); border-radius: 6px; min-height: 48px; }
 .model-card { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: center; width: 100%; }
 .model-card img, .model-card .pm-model-tile { width: 96px; height: 96px; object-fit: contain; border-radius: 6px; background: var(--bg); }
+
+/* Versions: kit <-> GIRAFE (kit/compat.js) */
+.version-alert { white-space: nowrap; }
+.version-alert.v-block { border-color: #ff7b7b; color: #ffb3b3; animation: gh-pulse-bad 1.4s ease-in-out infinite; }
+.version-alert.v-warn { border-color: #f5b450; }
+.version-alert.v-update { border-color: #6fb3ff; }
+@media (prefers-reduced-motion: reduce) { .version-alert.v-block { animation: none; } }
+#versionBadge { cursor: pointer; }
+.v-table { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; margin: 6px 0 10px; }
+.v-table span:nth-child(odd) { color: var(--soft); }
+.v-prob { border-left: 3px solid var(--line); padding: 4px 8px; margin: 6px 0; font-size: 13px; }
+.v-prob.block { border-color: #ff7b7b; } .v-prob.warn { border-color: #f5b450; } .v-prob.info { border-color: #6fb3ff; }
+.v-restart { text-align: center; padding: 18px 8px; }
