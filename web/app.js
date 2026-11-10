@@ -16,6 +16,7 @@ const el = (tag, attrs = {}, ...kids) => {
 const api = async (path, opts = {}) => {
   const r = await fetch(path, { ...opts, headers: { ...(opts.body && typeof opts.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) } });
   const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && data.code === 'signin' && !S.signingIn) { S.signingIn = true; location.reload(); }
   if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { code: data.code || null, status: r.status });
   return data;
 };
@@ -651,11 +652,11 @@ function openLink(after) {
     const L = S.link || {};
     const body = [];
     if (L.connected) {
-      body.push(el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Connected' }),
+      body.push(el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Signed in' }),
         el('div', { class: 'caps', text: `${L.account?.name || ''}${L.account?.email ? ' · ' + L.account.email : ''} on ${L.base} since ${String(L.linkedAt || '').slice(0, 10)}` }),
         el('div', { class: 'caps', text: 'The kit can send and update your own nodes in that account, nothing else. The link is stored like your keys (encrypted, only ever sent to GIRAFE). You can also revoke it from GIRAFE: Settings › Connected kits.' })));
-      body.push(el('div', { class: 'row' }, el('button', { class: 'danger', text: 'Disconnect', onclick: async () => { await api('/api/girafe/disconnect', { method: 'POST' }); await loadLink(); await loadKeys(); draw(); } }),
-        after ? el('button', { class: 'primary', text: 'Continue', onclick: () => { close(); after(); } }) : null));
+      body.push(el('div', { class: 'row' }, after ? el('button', { class: 'primary', text: 'Continue', onclick: () => { close(); after(); } }) : null,
+        el('button', { text: '🚪 Leave this computer…', title: 'Keep the kit ready, or sign out and erase your work from this computer', onclick: () => { close(); openLeave(); } })));
     } else if (L.pending && L.pending.state === 'waiting') {
       body.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Approve on GIRAFE' }),
         el('div', { class: 'link-code', text: L.pending.userCode }),
@@ -1125,7 +1126,94 @@ async function runUpdate(draw) {
 }
 
 // ---------- start ----------
+// ---------- signing in (kit/session.js) ----------
+// The kit does nothing until you sign in with your GIRAFE account. You say whose computer it is.
+function signInScreen(ses) {
+  S.signingIn = true;
+  const root = el('div', { class: 'signin' });
+  document.body.append(root);
+  let poll = null;
+  const draw = (st, err) => {
+    const p = st.pending;
+    const waiting = p && p.state === 'waiting';
+    root.replaceChildren(el('div', { class: 'signin-card' },
+      el('img', { class: 'signin-logo', src: 'giraffe.svg', alt: '', width: 64, height: 64 }),
+      el('h1', { text: 'Sign in with your GIRAFE account' }),
+      el('p', { class: 'desc', text: 'Your nodes, keys and links come with your account. Nothing works in the kit before you sign in.' }),
+      st.note ? el('div', { class: 'box warn-box' }, el('div', { class: 'caps', text: st.note })) : null,
+      waiting
+        ? el('div', { class: 'signin-wait' },
+          el('div', { class: 'caps', text: `On ${new URL(p.verifyUrl).host}, check this code and click Allow:` }),
+          el('div', { class: 'link-code', text: p.userCode }),
+          el('button', { class: 'primary big', text: `Open ${new URL(p.verifyUrl).host}`, onclick: () => window.open(p.verifyUrl, '_blank', 'noopener') }),
+          el('div', { class: 'muted', text: p.error ? '⚠️ ' + p.error : '⏳ Waiting for your Allow… this page notices by itself.' }),
+          el('button', { class: 'link', text: 'Start again', onclick: () => go(st.trust) }))
+        : el('div', { class: 'signin-choices' },
+          el('button', { class: 'signin-choice', onclick: () => go('mine') },
+            el('b', { text: '💻 This is my computer' }),
+            el('span', { text: 'Stay signed in. Closing the page leaves the kit ready, like a browser.' })),
+          el('button', { class: 'signin-choice', onclick: () => go('passing') },
+            el('b', { text: '🌍 Not my computer' }),
+            el('span', { text: `A café, a friend's: when the kit's page is closed for ${st.idleMinutes} minutes, your nodes are saved to GitHub and everything of yours is erased from here.` }))),
+      p && (p.state === 'denied' || p.state === 'expired') ? el('div', { class: 'problems', text: p.state === 'denied' ? 'You said no on girafe.live. Choose again to retry.' : 'The code expired. Choose again.' }) : null,
+      err ? el('div', { class: 'problems', text: err }) : null));
+  };
+  const watch = async () => {
+    clearTimeout(poll);
+    let st; try { st = await api('/api/session'); } catch { poll = setTimeout(watch, 3000); return; }
+    if (st.signedIn) { root.classList.add('done'); setTimeout(() => location.reload(), 500); return; }
+    draw(st);
+    if (st.pending && st.pending.state === 'waiting') poll = setTimeout(watch, 2000);
+  };
+  const go = async (trust) => {
+    try { const st = await api('/api/session/signin', { method: 'POST', body: JSON.stringify({ trust }) }); draw(st); if (st.pending?.verifyUrl) window.open(st.pending.verifyUrl, '_blank', 'noopener'); watch(); }
+    catch (e) { draw(ses, e.message); }
+  };
+  draw(ses);
+  if (ses.pending && ses.pending.state === 'waiting') watch();
+}
+
+// Leave this computer: keep the kit ready, or sign out and erase everything of yours from it.
+function openLeave() {
+  const ov = $('#keysDialog');
+  const close = () => { ov.hidden = true; };
+  const out = el('div');
+  const erase = async (force) => {
+    out.replaceChildren(el('div', { class: 'muted', text: 'Saving your nodes to GitHub, then signing out…' }));
+    try {
+      const r = await fetch('/api/session/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ erase: true, force }) }).then((x) => x.json());
+      if (r.ok) {
+        S.signingIn = true;
+        out.replaceChildren(el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Signed out, your work erased from this computer' }), el('div', { class: 'caps', text: 'You can close this page.' })));
+        setTimeout(() => location.reload(), 4000);
+        return;
+      }
+      out.replaceChildren(el('div', { class: 'problems', text: r.error }),
+        r.unsaved ? el('ul', { class: 'problems' }, ...r.unsaved.map((x) => el('li', { text: `${x.id}: ${x.why}` }))) : null,
+        r.code === 'unsaved' ? el('div', { class: 'row' },
+          !r.github ? el('button', { class: 'primary', text: 'Set up GitHub first', onclick: () => { close(); openGitHub(); } }) : null,
+          el('button', { class: 'danger', text: 'Erase anyway (those nodes are lost)', onclick: () => { if (confirm(`Erase anyway? ${r.unsaved.map((x) => x.id).join(', ')} will be gone from everywhere.`)) erase(true); } })) : null);
+    } catch (e) { out.replaceChildren(el('div', { class: 'problems', text: e.message })); }
+  };
+  ov.replaceChildren(el('div', { class: 'dialog' },
+    el('div', { class: 'dialog-hd' }, el('h3', { text: '🚪 Leave this computer' }), el('button', { class: 'link', text: '✕', title: 'Close', onclick: close })),
+    el('div', { class: 'caps', text: `Signed in as ${S.session?.account?.name || ''}${S.session?.account?.email ? ' · ' + S.session.account.email : ''}` }),
+    el('div', { class: 'leave-choices' },
+      el('button', { class: 'signin-choice', onclick: () => { out.replaceChildren(el('div', { class: 'box ok-box' }, el('div', { class: 'caps', text: 'The kit stays ready on this computer. You can close the page; next time it opens straight away.' }))); } },
+        el('b', { text: '💻 Keep it ready here' }), el('span', { text: 'Stay signed in on this computer.' })),
+      el('button', { class: 'signin-choice danger-choice', onclick: () => erase(false) },
+        el('b', { text: '🧹 Sign out and erase my work' }), el('span', { text: 'Your nodes are saved to GitHub first. Then the kit signs out of GIRAFE and the market, and removes your nodes, graphs and keys from this computer.' }))),
+    out));
+  ov.hidden = false;
+}
+
 (async function start() {
+  const ses = await api('/api/session');
+  S.session = ses;
+  if (ses.required && !ses.signedIn) return signInScreen(ses);
+  // The page says it is open, so a computer that isn't yours knows when it was left.
+  const beat = () => fetch('/api/session/beat', { method: 'POST' }).catch(() => {});
+  beat(); setInterval(beat, 30_000);
   S.info = await api('/api/info');
   $('#versionBadge').textContent = `GIRAFE ${S.info.girafe} (simulated) · host API ${S.info.hostApi}`;
   $('#versionBadge').title = `The GIRAFE this kit pretends to be. Kit ${S.info.kit}. Plugins must name host API ${S.info.hostApi}.`;
@@ -1142,6 +1230,8 @@ async function runUpdate(draw) {
   $('#keysBtn').addEventListener('click', openKeys);
   await loadKeys();
   $('#linkBtn').addEventListener('click', () => openLink());
+  $('#leaveBtn').addEventListener('click', () => openLeave());
+  if (ses.required) $('#leaveBtn').hidden = false; else $('#leaveBtn').hidden = true;
   await loadLink();
   $('#marketBtn').addEventListener('click', () => openMarket());
   await loadMarket();

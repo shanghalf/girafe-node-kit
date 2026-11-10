@@ -3,6 +3,18 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.10.0 (2026-11-10)
+
+- **The kit asks you to sign in with your GIRAFE account** before it does anything. One Allow on
+  girafe.live, and you say whose computer it is:
+  - **This is my computer**: you stay signed in; closing the page leaves the kit ready.
+  - **Not my computer** (a café, a friend's): when the kit's page is closed for 5 minutes, your
+    nodes are saved to GitHub, the kit signs out and erases everything of yours from that computer.
+    A node GitHub doesn't hold is never erased by itself: the kit keeps it and tells you.
+- **🚪 Leave** in the top bar: keep the kit ready, or sign out and erase your work (saved to GitHub first).
+- A link cut from GIRAFE › Settings › Connected kits signs the kit out at its next check.
+- An already linked kit stays signed in, as "my computer".
+
 ## 0.9.0 (2026-11-10)
 
 - **Your work now lives outside the kit**, in `GIRAFE kit workspace` in your home folder: nodes, test

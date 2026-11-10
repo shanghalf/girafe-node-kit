@@ -5,11 +5,12 @@ This repo is the GIRAFE node kit: a local simulator for building GIRAFE plugin n
 - Building or changing a **plugin node**: follow `AI-INSTRUCTIONS.md` and `HOST_API.md`. Nodes live in `workspace/nodes/<id>/`.
 - Changing the **kit itself** (`kit/`, `web/`):
   - zero dependencies: Node built-ins only, no build step for the web page (plain ES modules);
-  - nothing stored outside the workspace: `~/GIRAFE kit workspace` (`kit/home.js`), outside the kit's own folder so updates and new downloads never lose it. Always go through `store.ROOT`, never `<kit>/workspace` (that holds only the shipped nodes). Users must never lose work, whatever they do: no step may delete or overwrite their nodes, keys or signing key;
+  - nothing stored outside the workspace: `~/GIRAFE kit workspace` (`kit/home.js`), outside the kit's own folder so updates and new downloads never lose it. Always go through `store.ROOT`, never `<kit>/workspace` (that holds only the shipped nodes). Users must never lose work, whatever they do: no step may delete or overwrite their nodes, keys or signing key (the one exception is "Sign out and erase", see Signing in below);
   - the server listens on 127.0.0.1 only and refuses other hosts and cross-site writes;
   - core nodes must behave like GIRAFE's real ones (see the engine rules at the top of `kit/engine.js`);
   - a change to what plugins can do = a change to `HOST_API.md`, and to `kit/version.js` + `CHANGELOG.md` when it breaks existing nodes;
   - run `npm test` and check the page in a browser before calling it done.
+- Signing in (`kit/session.js`): every `/api/` route but info/compat/update/session answers 401 until the kit is linked to GIRAFE. Erasing (Leave, or idle on a "not my computer" kit) never removes a node GitHub doesn't hold unless the person forces it by name. Tests that start the server set `GIRAFE_KIT_NO_SIGNIN=1` or sign in against a fake GIRAFE.
 - Keys (`kit/keys.js`): a key is in plain text only when pasted and in memory for one call to its own service. Never decrypt to list or show; never log a key; never pass one to a plugin.
 - Every request the kit sends to the internet goes through `netguard.send()` (`kit/netguard.js`), never a bare `fetch`. A new service = its official hosts and login header in `OFFICIAL` / `AUTH_HEADER`.
 - The page keeps its Content-Security-Policy (`kit/server.js` `CSP`): it loads and contacts only the kit. No CDN, no outside script or font.

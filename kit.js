@@ -61,6 +61,7 @@ function child() {
   start({ port: Number(process.env.PORT) || 4747 }).then(({ server, url }) => {
     try { fs.writeFileSync(path.join(store.ROOT, '.kit', 'port'), String(server.address().port)); } catch {}
     const done = updater.confirm();
+    require('./kit/session').startTimers();
     console.log(`\n  GIRAFE node kit ${version.KIT_VERSION} · simulating GIRAFE ${version.GIRAFE_VERSION} · host API ${version.HOST_API}`);
     if (done) console.log(`  Updated from ${done.from} to ${done.to}.`);
     console.log(`  ${url}`);

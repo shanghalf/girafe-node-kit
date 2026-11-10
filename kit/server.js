@@ -21,6 +21,7 @@ const updater = require('./updater');
 const nodeRuns = require('./node-runs');
 const github = require('./github');
 const home = require('./home');
+const session = require('./session');
 
 const WEB = path.join(__dirname, '..', 'web');
 const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
@@ -62,6 +63,22 @@ async function handle(req, res) {
   if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(req.headers.host || ''))) return send(res, 403, { error: 'open the kit at http://localhost' });
   // A page from another site must not drive the kit: only same-origin requests write.
   if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'cross-site request refused' });
+
+  // Signing in (kit/session.js): until the kit is signed in with GIRAFE, only these answer.
+  if (req.method === 'GET' && p === '/api/session') return send(res, 200, session.status());
+  if (req.method === 'POST' && p === '/api/session/signin') {
+    try { const b = await readJson(req); await session.signIn(b.trust); return send(res, 200, session.status()); }
+    catch (e) { return send(res, 502, { error: e.message }); }
+  }
+  if (req.method === 'POST' && p === '/api/session/beat') return send(res, 200, session.beat());
+  if (req.method === 'POST' && p === '/api/session/check') return send(res, 200, await session.check());
+  if (p.startsWith('/api/') && !['/api/info', '/api/compat', '/api/update'].includes(p) && !session.status().signedIn) return send(res, 401, { error: 'Sign in with your GIRAFE account first.', code: 'signin' });
+  if (req.method === 'GET' && p === '/api/session/unsaved') { try { return send(res, 200, await session.unsaved()); } catch (e) { return send(res, 502, { error: e.message }); } }
+  if (req.method === 'POST' && p === '/api/session/leave') {
+    const b = await readJson(req);
+    try { const r = await session.leave({ erase: !!b.erase, force: !!b.force }); return send(res, r.ok ? 200 : 409, r); }
+    catch (e) { return send(res, 500, { error: e.message }); }
+  }
 
   if (req.method === 'GET' && p === '/api/info') return send(res, 200, { kit: version.KIT_VERSION, girafe: version.GIRAFE_VERSION, hostApi: version.HOST_API, workspace: store.ROOT, workspaceMode: home.resolve().mode, migratedFrom: home.resolve().migratedFrom });
   // Your work in one home folder (kit/home.js); other kit folders still holding work can be brought here.

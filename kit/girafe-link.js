@@ -102,6 +102,33 @@ async function disconnect() {
   return status();
 }
 
+// Who the kit is signed in as. 401 = the link was cut (Settings › Connected kits) or the account
+// is on hold: the caller signs the kit out.
+async function whoami() {
+  const s = read();
+  if (!s?.keyId) throw Object.assign(new Error('Not signed in.'), { status: 401 });
+  const t = keys.use(s.keyId, 'girafe');
+  let res;
+  try { res = await netguard.send(base() + '/api/kit/me', { method: 'GET', headers: { authorization: `Bearer ${t.value}`, 'x-girafe-kit-version': KIT_VERSION } }, { service: 'girafe', key: t.value, keyLabel: 'GIRAFE link', purpose: 'Check the GIRAFE sign-in' }); }
+  catch (e) { if (e instanceof netguard.Blocked) throw e; throw new Error(`Can't reach GIRAFE (${base()}): ${e.message}`); }
+  // An older GIRAFE without /api/kit/me: assume the link holds.
+  if (res.status === 404) return { account: s.account };
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw Object.assign(new Error(data.error || 'Signed out.'), { status: 401 });
+  if (!res.ok) throw new Error(data.error || `GIRAFE answered HTTP ${res.status}`);
+  if (data.account) write({ ...s, account: data.account });
+  return data;
+}
+
+// Drop the link on this computer without asking GIRAFE (it already refused it).
+async function forget() {
+  stopPolling(); pending = null;
+  const s = read();
+  if (s?.keyId) keys.remove(s.keyId);
+  try { fs.unlinkSync(FILE); } catch {}
+  return status();
+}
+
 // Pack the node and send it to the linked account: a new node, or a new version of it.
 async function send(id) {
   const s = read();
@@ -139,4 +166,4 @@ async function sendPack(packId) {
   }
 }
 
-module.exports = { status, connect, disconnect, send, sendPack, base };
+module.exports = { status, connect, disconnect, send, sendPack, base, whoami, forget };

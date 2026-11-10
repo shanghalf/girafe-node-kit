@@ -10,7 +10,8 @@ real ones, run the graph and see what happens, with nothing sent anywhere.
 2. Double-click the starter for your computer:
    - Windows: **Start GIRAFE kit (Windows).cmd**
    - Mac: **Start GIRAFE kit (Mac).command** (the first time, right-click it and choose **Open**, because it isn't from the App Store)
-3. Your browser opens on the kit with an example graph. Press **Run**.
+3. Your browser opens on the kit. **Sign in with your GIRAFE account** (one Allow on girafe.live)
+   and say whose computer it is. Then press **Run** on the example graph.
 
 The first start downloads a private copy of Node.js (about 30 MB) into the kit's folder and
 checks it against nodejs.org's published checksum. If your computer already has Node 22 or
@@ -19,6 +20,18 @@ is in its folder. Keep the small window open while you use the kit; close it to 
 remove the kit, delete the folder.
 
 Developers: `node kit.js` does the same with your own Node 22+.
+
+## Signing in, and leaving a computer
+
+The kit runs on any computer, but does nothing until you sign in with your GIRAFE account. The kit
+never sees your password: it opens girafe.live, where you click Allow.
+
+- **This is my computer**: you stay signed in, like a browser. Closing the page leaves it ready.
+- **Not my computer** (a café, a friend's): when the kit's page has been closed for 5 minutes, your
+  nodes are saved to GitHub, the kit signs out and erases everything of yours from that computer. A
+  node GitHub doesn't hold is never erased by itself: the kit keeps it and tells you next time.
+- **🚪 Leave** in the top bar, at any time: keep it ready, or sign out and erase your work.
+- Forgot a kit somewhere? GIRAFE › Settings › Connected kits cuts it; it signs out at its next check.
 
 ## Where your work is kept
 
@@ -72,8 +85,7 @@ They need your own API key: **🔑 Keys** at the top, paste it, save.
 In a plugin node's panel:
 - **📦 Pack** makes a signed `.gnode` file of it.
 - **☁️ Send to my GIRAFE** puts it in your GIRAFE account, where it works on all your devices and
-  only you see it. The first time, **Connect to GIRAFE** opens girafe.live: log in (or create an
-  account) there and click Allow. The kit never sees your password, and works fine unconnected.
+  only you see it, with the account you signed in with.
 
 Nodes made to work together (a 3D chain, say) can form a **pack**: a folder with a `pack.json`
 listing them (see HOST_API.md). They show under the pack's title, share one key, and are sent to
