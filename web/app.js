@@ -727,6 +727,7 @@ function openMarket(after) {
   let poll = null;
   const close = () => { clearTimeout(poll); ov.hidden = true; };
   const list = el('div', { class: 'market-subs' }, el('div', { class: 'muted', text: 'Asking the market…' }));
+  const msg = el('div', { class: 'muted' });
   // What you can publish (your packs, and your nodes outside a pack) with where each stands on the
   // market and the one thing to do next. Disconnecting is not the way to do anything here.
   const loadSubs = async () => {
@@ -740,7 +741,6 @@ function openMarket(after) {
       ...S.pluginList.filter((k) => !inPack.has(k.id) && !shipped.has(k.id)).map((k) => ({ id: k.id, kind: 'node', name: k.name, version: k.version })),
     ];
     const latestOf = (id) => d.submissions.find((s) => s.packageId === id && s.status !== 'superseded');
-    const msg = el('div', { class: 'muted' });
     const rows = mine.map((it) => {
       const s = latestOf(it.id);
       const same = s && s.version === it.version;
