@@ -21,6 +21,8 @@ const SERVICES = {
   other: { label: 'Other', get: null },
   // Not pasted: the token a GIRAFE account gives this computer when you connect the kit.
   girafe: { label: 'GIRAFE account link', get: null, internal: true },
+  // Not pasted either: the token the GIRAFE Market gives this computer (publishing only).
+  market: { label: 'GIRAFE Market link', get: null, internal: true },
 };
 
 function secret() {

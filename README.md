@@ -65,6 +65,21 @@ Nodes made to work together (a 3D chain, say) can form a **pack**: a folder with
 listing them (see HOST_API.md). They show under the pack's title, share one key, and are sent to
 GIRAFE together with **☁️ Send the pack**.
 
+To offer a node or a pack to everyone, **🛒 Submit to the market** sends it to the
+[GIRAFE Market](https://market.girafe.live) for review (connect once with **🛒 Market**). Dress up its
+page with a `market/` folder in the node's (or pack's) folder: pictures, up to two short MP4 videos,
+a `cover.png` for the tile's background, and a `listing.json`:
+
+```json
+{ "tagline": "One line that sells it",
+  "description": "What it does, for whom.",
+  "tags": ["3d", "game dev"],
+  "captions": { "01-result.png": "What this picture shows" },
+  "i18n": { "fr": { "tagline": "…" }, "vi": { "tagline": "…" } } }
+```
+
+Name the pictures `01-…`, `02-…` to set their order. `market/` is never packed: GIRAFE only gets the node.
+
 ## Updates
 
 The kit and GIRAFE check each other's version. When they don't match, a button at the top says

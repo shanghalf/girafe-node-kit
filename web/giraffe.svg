@@ -1,0 +1,50 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <circle class="disc" cx="100" cy="104" r="70" fill="#9fe1d8"/>
+  <g class="head">
+    <g class="horns">
+      <polygon points="67,52 71,22 77,24 78,50" fill="#e9b27a"/>
+      <polygon points="71,22 77,24 78,50 74,50" fill="#f7dcb0"/>
+      <polygon points="86,50 90,22 96,23 95,52" fill="#e9b27a"/>
+      <polygon points="90,22 96,23 95,52 91,51" fill="#f7dcb0"/>
+      <circle cx="73" cy="20" r="7.5" fill="#1d1513"/>
+      <circle cx="93" cy="20" r="7.5" fill="#1d1513"/>
+      <circle cx="71" cy="18" r="2.2" fill="#4a3a35"/>
+      <circle cx="91" cy="18" r="2.2" fill="#4a3a35"/>
+    </g>
+    <g class="ear-l"><polygon points="26,44 66,54 58,70" fill="#b4461c"/><polygon points="34,48 62,56 56,66" fill="#f3d3a3"/><polygon points="26,44 46,49 40,55" fill="#7c2b12"/></g>
+    <g class="ear-r"><polygon points="140,40 104,56 118,70" fill="#d9622c"/><polygon points="134,45 108,57 118,65" fill="#f7dcb0"/></g>
+    <!-- neck -->
+    <polygon points="56,66 70,64 76,178 64,182" fill="#25130f"/>
+    <polygon points="70,64 96,92 92,128 76,178" fill="#e37a3c"/>
+    <polygon points="70,64 96,92 80,104" fill="#f29a5c"/>
+    <polygon points="80,104 92,128 76,140" fill="#a8441d"/>
+    <polygon points="76,140 92,128 98,160" fill="#f7c38c"/>
+    <polygon points="76,140 98,160 78,178" fill="#c95a24"/>
+    <polygon points="98,160 102,174 78,178" fill="#f7dcb0"/>
+    <polygon points="92,128 108,118 98,160" fill="#f29a5c"/>
+    <polygon points="72,110 80,104 76,140" fill="#f7c38c"/>
+    <!-- face -->
+    <polygon points="64,52 104,50 122,74 96,92 70,64" fill="#f08a4a"/>
+    <polygon points="104,50 128,62 150,110 122,74" fill="#fbe5c4"/>
+    <polygon points="70,64 96,92 82,80" fill="#d9692f"/>
+    <polygon points="122,74 150,110 112,112 96,92" fill="#f6c18f"/>
+    <polygon points="96,92 112,112 108,118 92,128" fill="#e37a3c"/>
+    <!-- muzzle -->
+    <polygon points="112,112 150,110 162,122 146,132 116,124" fill="#f4a067"/>
+    <polygon points="116,124 146,132 132,136" fill="#d9692f"/>
+    <polygon points="150,110 162,122 156,114" fill="#f8b989"/>
+    <ellipse cx="150" cy="119" rx="5" ry="2.4" transform="rotate(25 150 119)" fill="#2a1712"/>
+    <path d="M128 128 Q138 131 146 130" stroke="#a8441d" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <!-- eye -->
+    <g class="eye">
+      <ellipse cx="107" cy="78" rx="11" ry="9" fill="#ffffff"/>
+      <circle cx="108" cy="80" r="6.6" fill="#2fb3bf"/>
+      <circle cx="108.5" cy="80.5" r="3.4" fill="#0f2a33"/>
+      <circle cx="106" cy="77.5" r="1.7" fill="#ffffff"/>
+      <path class="lid" d="M95 79 Q107 64 119 76 Q107 72 95 79 Z" fill="#e47f43"/>
+      <path d="M95.5 78 Q107 71 119 76" stroke="#3a1d12" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    </g>
+    <path class="lash" d="M96 80 Q107 87 118 80" stroke="#3a1d12" stroke-width="2.6" fill="none" stroke-linecap="round" opacity="0"/>
+    <path d="M94 70 Q104 63 116 67" stroke="#c95a24" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>

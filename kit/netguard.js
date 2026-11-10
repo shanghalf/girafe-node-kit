@@ -15,17 +15,18 @@ const OFFICIAL = {
   openai: ['api.openai.com'],
   gemini: ['generativelanguage.googleapis.com'],
   girafe: ['girafe.live'],
+  market: ['market.girafe.live'],
   github: ['api.github.com'],
   tripo: ['openapi.tripo3d.ai', 'openapi.tripo3d.com'],
 };
 // Test runs point the services at a fake local server (KIT_*_URL); that address is allowed too.
 function hostsFor(service) {
-  const env = { anthropic: process.env.KIT_ANTHROPIC_URL, openai: process.env.KIT_OPENAI_URL, gemini: process.env.KIT_GEMINI_URL, girafe: process.env.KIT_GIRAFE_URL, github: process.env.KIT_GITHUB_URL, tripo: process.env.KIT_TRIPO_URL }[service];
+  const env = { anthropic: process.env.KIT_ANTHROPIC_URL, openai: process.env.KIT_OPENAI_URL, gemini: process.env.KIT_GEMINI_URL, girafe: process.env.KIT_GIRAFE_URL, market: process.env.KIT_MARKET_URL, github: process.env.KIT_GITHUB_URL, tripo: process.env.KIT_TRIPO_URL }[service];
   const extra = [];
   if (env) { try { extra.push(new URL(env).host); } catch {} }
   return [...(OFFICIAL[service] || []), ...extra];
 }
-const AUTH_HEADER = { anthropic: 'x-api-key', openai: 'authorization', gemini: 'x-goog-api-key', girafe: 'authorization', github: 'authorization', tripo: 'authorization' };
+const AUTH_HEADER = { anthropic: 'x-api-key', openai: 'authorization', gemini: 'x-goog-api-key', girafe: 'authorization', market: 'authorization', github: 'authorization', tripo: 'authorization' };
 
 const log = [];
 const approved = new Map(); // "origin path" -> count of approved requests not yet observed

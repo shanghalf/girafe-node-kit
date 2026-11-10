@@ -14,6 +14,7 @@ const gemini = require('./ai/gemini-image');
 const netguard = require('./netguard');
 const pkgs = require('./package');
 const link = require('./girafe-link');
+const market = require('./market-link');
 const packs = require('./packs');
 const compat = require('./compat');
 const updater = require('./updater');
@@ -99,6 +100,7 @@ async function handle(req, res) {
     try {
       const body = await readJson(req);
       if (body.service === 'girafe') return send(res, 400, { error: 'The GIRAFE link is made with "Connect to GIRAFE", not pasted.' });
+      if (body.service === 'market') return send(res, 400, { error: 'The market link is made with "Connect" in 🛒 Market, not pasted.' });
       const key = keys.add(body);
       return send(res, 200, { key, during: netguard.since(before) });
     } catch (e) { return send(res, 400, { error: e.message }); }
@@ -149,6 +151,20 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === '/api/girafe/send-pack') {
     const { id } = await readJson(req);
     try { return send(res, 200, await link.sendPack(String(id || ''))); } catch (e) { return send(res, e.needsLink ? 409 : e.code ? 409 : 400, { error: e.message, needsLink: !!e.needsLink, code: e.code || null }); }
+  }
+
+  // Publishing to the GIRAFE Market (kit/market-link.js).
+  if (req.method === 'GET' && p === '/api/market') return send(res, 200, market.status());
+  if (req.method === 'POST' && p === '/api/market/connect') { try { return send(res, 200, await market.connect()); } catch (e) { return send(res, 502, { error: e.message }); } }
+  if (req.method === 'POST' && p === '/api/market/disconnect') return send(res, 200, await market.disconnect());
+  if (req.method === 'GET' && (k = m(/^\/api\/market\/listing\/([a-z0-9][a-z0-9-]{0,63})$/))) return send(res, 200, market.listing(k[1]));
+  if (req.method === 'GET' && p === '/api/market/submissions') {
+    try { return send(res, 200, await market.submissions()); } catch (e) { return send(res, e.needsLink ? 409 : 502, { error: e.message, needsLink: !!e.needsLink }); }
+  }
+  if (req.method === 'POST' && p === '/api/market/submit') {
+    const { id, kind, notes } = await readJson(req);
+    try { return send(res, 200, await market.submit(String(id || ''), { kind: kind === 'pack' ? 'pack' : 'node', notes: String(notes || '') })); }
+    catch (e) { return send(res, e instanceof netguard.Blocked ? 403 : e.needsLink || e.code ? 409 : 400, { error: e.message, needsLink: !!e.needsLink, code: e.code || null }); }
   }
 
   // Your nodes on GitHub (kit/github.js). Errors say what to do; a secret found stops a save.

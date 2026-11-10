@@ -610,7 +610,8 @@ function packBox(k) {
     el('div', { class: 'row' }, el('button', { text: '📦 Pack', title: 'Make a signed .gnode file of this node', onclick: pack }),
       el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send to my GIRAFE' : '☁️ Connect and send to my GIRAFE', onclick: sendIt })),
     el('div', { class: 'caps', text: `Version ${k.version}. GIRAFE accepts each version once: raise "version" in manifest.json before sending a change.` }),
-    S.compat?.girafe?.hostApis && !S.compat.girafe.hostApis.includes(k.hostApi) ? el('div', { class: 'v-prob warn', text: `Written for host API ${k.hostApi}; GIRAFE ${S.compat.girafe.version} runs host API ${S.compat.girafe.hostApis.join(' and ')}. It can't be sent until they match.` }) : null, out);
+    S.compat?.girafe?.hostApis && !S.compat.girafe.hostApis.includes(k.hostApi) ? el('div', { class: 'v-prob warn', text: `Written for host API ${k.hostApi}; GIRAFE ${S.compat.girafe.version} runs host API ${S.compat.girafe.hostApis.join(' and ')}. It can't be sent until they match.` }) : null, out,
+    marketBox(k.id, 'node', k.name, k.version));
 }
 // A pack is packed and sent as one: its nodes arrive together in GIRAFE, under its title.
 function packSendBox(pk) {
@@ -639,7 +640,8 @@ function packSendBox(pk) {
     pk.problems.length ? el('ul', { class: 'problems' }, ...pk.problems.map((x) => el('li', { text: x }))) : null,
     el('div', { class: 'row' }, el('button', { text: '📦 Pack', title: 'Make a signed .gpack file of the whole pack', onclick: pack }),
       el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send the pack to my GIRAFE' : '☁️ Connect and send the pack', onclick: sendIt })),
-    el('div', { class: 'caps', text: `Pack version ${pk.version}. GIRAFE accepts each pack version once: raise "version" in pack.json (and in the manifests of the nodes you changed) before sending again.` }), out);
+    el('div', { class: 'caps', text: `Pack version ${pk.version}. GIRAFE accepts each pack version once: raise "version" in pack.json (and in the manifests of the nodes you changed) before sending again.` }), out,
+    marketBox(pk.id, 'pack', pk.name, pk.version));
 }
 function openLink(after) {
   const ov = $('#keysDialog');
@@ -675,6 +677,98 @@ function openLink(after) {
     ov.hidden = false;
   };
   loadLink().then(draw);
+}
+
+// ---------- the GIRAFE Market (publishing) ----------
+S.market = null; S.listings = {}; S.marketMsg = {};
+async function loadMarket() {
+  try { S.market = await api('/api/market'); } catch { S.market = null; }
+  const btn = $('#marketBtn');
+  if (btn) { btn.textContent = S.market?.connected ? '🛒 Market ✓' : '🛒 Market'; btn.title = S.market?.connected ? `Publishing as ${S.market.account?.name || ''} on ${S.market.base}` : 'Publish your nodes on the GIRAFE Market'; }
+}
+// Under "Share this node": submit it (or its pack) for review on the market, with its market/ folder.
+function marketBox(id, kind, name, version) {
+  const key = `${kind}:${id}`;
+  const out = el('div', { class: 'muted', 'data-market': key });
+  const say = (t) => { S.marketMsg[key] = t; for (const n of document.querySelectorAll(`[data-market="${key}"]`)) n.textContent = t; out.textContent = t; };
+  if (S.marketMsg[key]) out.textContent = S.marketMsg[key];
+  const info = el('div', { class: 'caps' });
+  const paintInfo = (L) => {
+    const imgs = L.media.filter((m) => m.kind === 'image').length; const vids = L.media.filter((m) => m.kind === 'video').length;
+    info.replaceChildren(L.listing || L.media.length || L.cover
+      ? `Market page: ${L.listing ? 'listing.json' : 'no listing.json'} · ${L.cover ? `tile background ${L.cover.name}` : 'no tile background (cover.png)'} · ${imgs} picture${imgs === 1 ? '' : 's'} · ${vids} video${vids === 1 ? '' : 's'} (${L.dir}).`
+      : `Add pictures, a short video and a listing.json in ${L.dir} to dress up its market page.`,
+    ...L.problems.map((p) => el('div', { class: 'v-prob warn', text: p })));
+  };
+  if (S.listings[key]) paintInfo(S.listings[key]);
+  else api(`/api/market/listing/${id}`).then((L) => { S.listings[key] = L; paintInfo(L); }).catch(() => {});
+  const notes = el('input', { type: 'text', placeholder: 'What changed in this version (optional)' });
+  const submit = async () => {
+    if (!S.market?.connected) return openMarket(() => submit());
+    delete S.listings[key];
+    say(`Submitting ${name} ${version} to the market…`);
+    try {
+      const r = await api('/api/market/submit', { method: 'POST', body: JSON.stringify({ id, kind, notes: notes.value }) });
+      const extra = [r.sent.listing ? 'its text' : null, r.sent.cover ? 'its tile background' : null, r.sent.media ? `${r.sent.media} picture${r.sent.media === 1 ? '' : 's'}/video${r.sent.media === 1 ? '' : 's'}` : null].filter(Boolean).join(' and ');
+      say(`✓ ${name} ${r.version} is waiting for review${extra ? `, with ${extra}` : ''}.${r.sent.problems.length ? ' ⚠️ ' + r.sent.problems.join(' · ') : ''}`);
+      notes.value = '';
+    } catch (e) { say('⚠️ ' + e.message); if (e.needsLink || /Connect/.test(e.message)) loadMarket(); }
+  };
+  return el('div', { class: 'market-box' },
+    el('div', { class: 'box-title', text: '🛒 GIRAFE Market' }),
+    el('div', { class: 'caps', text: 'Offer it to everyone: an admin reviews each version before it shows up on the market.' }),
+    info, el('div', { class: 'field' }, notes),
+    el('div', { class: 'row' }, el('button', { class: 'market-btn', text: S.market?.connected ? (kind === 'pack' ? '🛒 Submit the pack to the market' : '🛒 Submit to the market') : '🛒 Connect and submit', onclick: submit })),
+    out);
+}
+function openMarket(after) {
+  const ov = $('#keysDialog');
+  let poll = null;
+  const close = () => { clearTimeout(poll); ov.hidden = true; };
+  const list = el('div', { class: 'market-subs' });
+  const loadSubs = async () => {
+    try {
+      const d = await api('/api/market/submissions');
+      const tag = { pending: '⏳ waiting for review', approved: '✓ approved', rejected: '✕ not accepted', withdrawn: 'withdrawn', superseded: 'replaced by a newer version' };
+      list.replaceChildren(el('div', { class: 'box-title', text: 'My submissions' }),
+        ...(d.submissions.length ? d.submissions.slice(0, 12).map((s) => el('div', { class: `market-sub ${s.status}` },
+          el('b', { text: `${s.kind === 'gpack' ? '📦' : '🧩'} ${s.name} ${s.version}` }), ' ', el('span', { text: tag[s.status] || s.status }),
+          s.reason ? el('div', { class: 'caps', text: `Reviewer: ${s.reason}` }) : null)) : [el('div', { class: 'muted', text: 'Nothing submitted yet.' })]),
+        el('div', { class: 'row' }, el('button', { class: 'link', text: `Open ${new URL(S.market.base).host}/submissions`, onclick: () => window.open(`${S.market.base}/submissions`, '_blank', 'noopener') })));
+    } catch (e) { list.replaceChildren(el('div', { class: 'problems', text: e.message })); }
+  };
+  const draw = () => {
+    const L = S.market || {};
+    const body = [];
+    if (L.connected) {
+      body.push(el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Connected' }),
+        el('div', { class: 'caps', text: `Publishing as ${L.account?.name || ''}${L.account?.email ? ' · ' + L.account.email : ''} on ${L.base} since ${String(L.linkedAt || '').slice(0, 10)}` }),
+        el('div', { class: 'caps', text: 'The kit can submit your nodes and packs for review and read where they stand, nothing else. The link is stored like your keys (encrypted, only ever sent to the market).' })));
+      body.push(list); loadSubs();
+      body.push(el('div', { class: 'row' }, el('button', { class: 'danger', text: 'Disconnect', onclick: async () => { await api('/api/market/disconnect', { method: 'POST' }); await loadMarket(); await loadKeys(); draw(); renderPanel(); } }),
+        after ? el('button', { class: 'primary', text: 'Continue', onclick: () => { close(); after(); } }) : null));
+    } else if (L.pending && L.pending.state === 'waiting') {
+      body.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Approve on the market' }),
+        el('div', { class: 'link-code', text: L.pending.userCode }),
+        el('div', { class: 'caps', text: 'Click below: the market opens with this code. Sign in there (or create an account), check the code is the same, and click Allow. This window notices by itself.' }),
+        el('div', { class: 'row', style: { marginTop: '8px' } }, el('button', { class: 'primary', text: `Open ${new URL(L.pending.verifyUrl).host}`, onclick: () => window.open(L.pending.verifyUrl, '_blank', 'noopener') })),
+        L.pending.error ? el('div', { class: 'problems', text: L.pending.error }) : el('div', { class: 'muted', text: '⏳ waiting for your approval…' })));
+      poll = setTimeout(async () => { await loadMarket(); if (S.market?.connected) { await loadKeys(); renderPanel(); } draw(); }, 2000);
+    } else {
+      if (L.pending && L.pending.state !== 'approved') body.push(el('div', { class: 'problems', text: L.pending.state === 'denied' ? 'You said no on the market. Nothing was linked.' : 'The code expired. Start again.' }));
+      body.push(el('p', { class: 'desc', text: 'Publish your nodes and packs on the GIRAFE Market, where other people can install them in one click. Connect once with your market account (you sign in on the market itself, never in the kit), then press "Submit to the market" on a node or a pack.' }));
+      body.push(el('div', { class: 'caps', text: 'Dress up its page: put pictures (PNG, JPEG, WebP, GIF, up to 8) and short videos (MP4 or WebM, up to 2) in a market/ folder inside the node\'s folder (or the pack\'s), named 01-..., 02-... for the order. A cover.png (or .jpg, .webp) there is the background of its tile in the market. A market/listing.json can hold { "tagline", "description", "tags", "captions": { "01-shot.png": "..." }, "i18n": { "fr": {...}, "vi": {...} } }. market/ is never packed: GIRAFE only gets the node.' }));
+      const err = el('div', { class: 'problems' });
+      body.push(el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Connect', onclick: async () => {
+        try { S.market = await api('/api/market/connect', { method: 'POST' }); draw(); } catch (e) { err.textContent = e.message; }
+      } })), err);
+    }
+    ov.replaceChildren(el('div', { class: 'dialog' },
+      el('div', { class: 'dialog-hd' }, el('h3', { text: '🛒 GIRAFE Market' }), el('button', { class: 'link', text: '✕', title: 'Close', onclick: close })),
+      ...body));
+    ov.hidden = false;
+  };
+  loadMarket().then(draw);
 }
 
 // ---------- key bank ----------
@@ -732,7 +826,7 @@ function openKeys() {
       el('p', { class: 'desc', text: 'Keys for the nodes that call an outside service (Prompt, Generate image). They stay on this computer, encrypted, in workspace/.kit/. Nodes you build as plugins never see them.' }),
       S.keys.length ? el('div', { class: 'box' }, ...S.keys.map((k) => el('div', { class: 'key-row' },
         el('div', {}, el('b', { text: k.label }), el('div', { class: 'muted', text: `${S.services[k.service]?.label || k.service} · ${k.masked}` })),
-        el('button', { class: 'danger', text: k.service === 'girafe' ? 'Disconnect' : 'Delete', onclick: async () => { if (!confirm(k.service === 'girafe' ? 'Disconnect the kit from your GIRAFE account?' : `Delete the key "${k.label}"?`)) return; if (k.service === 'girafe') await api('/api/girafe/disconnect', { method: 'POST' }); else await api('/api/keys/' + k.id, { method: 'DELETE' }); await loadKeys(); await loadLink(); draw(); renderPanel(); } })))) : el('div', { class: 'muted', text: 'No keys yet.' }),
+        el('button', { class: 'danger', text: k.service === 'girafe' || k.service === 'market' ? 'Disconnect' : 'Delete', onclick: async () => { if (!confirm(k.service === 'girafe' ? 'Disconnect the kit from your GIRAFE account?' : k.service === 'market' ? 'Disconnect the kit from the market?' : `Delete the key "${k.label}"?`)) return; if (k.service === 'girafe') await api('/api/girafe/disconnect', { method: 'POST' }); else if (k.service === 'market') await api('/api/market/disconnect', { method: 'POST' }); else await api('/api/keys/' + k.id, { method: 'DELETE' }); await loadKeys(); await loadLink(); await loadMarket(); draw(); renderPanel(); } })))) : el('div', { class: 'muted', text: 'No keys yet.' }),
       el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Add a key' }),
         el('div', { class: 'field' }, el('label', { text: 'Key' }), value),
         el('div', { class: 'field' }, el('label', { text: 'Service' }), service),
@@ -1018,6 +1112,8 @@ async function runUpdate(draw) {
   await loadKeys();
   $('#linkBtn').addEventListener('click', () => openLink());
   await loadLink();
+  $('#marketBtn').addEventListener('click', () => openMarket());
+  await loadMarket();
   $('#ghBtn').addEventListener('click', () => openGitHub());
   await loadGitHub();
   setInterval(() => loadGitHub(), 5000);

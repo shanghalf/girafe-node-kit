@@ -17,7 +17,7 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 
 .top { height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--bg2); }
 .brand { display: flex; align-items: center; gap: 6px; margin-right: 8px; }
-.brand .logo { font-size: 20px; }
+.brand .logo { width: 28px; height: 28px; display: block; }
 .brand .sub { color: var(--soft); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
 .top select { width: 200px; }
 .title-input { width: 240px; }
@@ -216,3 +216,11 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .thumbs:has(> .model-card) { grid-template-columns: 1fr; gap: 8px; }
 .model-card > div { min-width: 0; overflow-wrap: anywhere; }
 .gh-mark { width: 1em; height: 1em; vertical-align: -0.125em; flex: none; }
+/* GIRAFE Market box under "Share this node" */
+.market-box { border: 1px solid rgba(176,124,255,.45); border-radius: 8px; padding: 10px; margin: 12px 0; background: linear-gradient(160deg, rgba(176,124,255,.10), var(--bg) 60%); }
+.market-box .field { margin: 8px 0; }
+.market-btn { background: #B07CFF; color: #120822; border-color: #B07CFF; font-weight: 600; }
+.market-btn:hover { filter: brightness(1.08); }
+.market-subs { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+.market-sub { font-size: 13px; }
+.market-sub.approved span { color: #5fd97a; } .market-sub.rejected span { color: #ff7a8a; } .market-sub.pending span { color: #ffc861; }

@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GIRAFE node kit</title>
 <link rel="stylesheet" href="style.css">
+<link rel="icon" href="giraffe.svg" type="image/svg+xml">
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span class="logo">🦒</span><b>GIRAFE</b><span class="sub">node kit</span></div>
+  <div class="brand"><img class="logo" src="giraffe.svg" alt="" width="28" height="28"><b>GIRAFE</b><span class="sub">node kit</span></div>
   <select id="graphSel" title="Your test graphs"></select>
   <button id="newGraph" title="New graph">＋ New</button>
   <input id="graphTitle" class="title-input" placeholder="Graph title">
@@ -19,6 +20,7 @@
   <button id="keysBtn" title="API keys for Prompt and Generate image">🔑 Keys</button>
   <button id="ghBtn" title="Keep your nodes on GitHub">GitHub</button>
   <button id="linkBtn" title="Optional: link the kit to your GIRAFE account">☁️ Connect to GIRAFE</button>
+  <button id="marketBtn" title="Publish your nodes on the GIRAFE Market">🛒 Market</button>
   <a class="btn-link" href="/docs" target="_blank" rel="noopener" title="Technical documentation">📖 Docs</a>
   <span id="runStatus" class="run-status"></span>
   <button id="versionAlert" class="version-alert" hidden></button>

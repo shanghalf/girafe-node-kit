@@ -3,6 +3,17 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.8.0 (2026-11-10)
+
+- **Publish on the GIRAFE Market**: 🛒 Market in the top bar links the kit to a market account (same
+  one-click device link as GIRAFE), and "Submit to the market" under a node or a pack sends it for
+  review. Every version is reviewed by a market admin before anyone can install it.
+- **A market page for your node**: put pictures, up to two short videos, a `cover.png` (the tile's
+  background) and a `listing.json` (one line, description, tags, captions, French/Vietnamese texts)
+  in a `market/` folder inside the node's or the pack's folder. `market/` is never packed: GIRAFE
+  only gets the node. Nothing changes for nodes without it.
+- The GIRAFE giraffe logo replaces the 🦒 in the top bar.
+
 ## 0.7.0 (2026-11-07)
 
 - **Billing**: a node or pack that pays an outside service declares it in `"billing"` (unit, default

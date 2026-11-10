@@ -21,7 +21,8 @@ const MAX_FILES = 64;
 const MAX_BYTES = 10 * 1024 * 1024;
 const OUT = path.join(store.ROOT, 'packages');
 const AUTHOR = path.join(store.ROOT, '.kit', 'author-ed25519.pem');
-const SKIP = /(^|\/)(\.|node_modules\/|.*\.g(node|pack)$)/;
+// market/ holds the pictures and videos of the node's market page: sent to the market apart, never packed.
+const SKIP = /(^|\/)(\.|node_modules\/|.*\.g(node|pack)$)|^market(\/|$)/;
 
 function authorKey() {
   if (!fs.existsSync(AUTHOR)) {
