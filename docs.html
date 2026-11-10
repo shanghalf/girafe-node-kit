@@ -76,14 +76,14 @@
 
 <h1>GIRAFE node kit</h1>
 <p class="lead">Technical documentation: how the kit is built, how it runs a graph, how plugin nodes are isolated, and how API keys are handled.</p>
-<p class="meta">Last updated 2026-11-10 (publishing to the GIRAFE Market). Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
+<p class="meta">Last updated 2026-11-10 (the workspace moves to your home folder). Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
 
 <h2 id="overview">1. Overview</h2>
 <p>The kit is a small, local copy of GIRAFE's Promptmixer canvas, used to build <strong>plugin nodes</strong>: nodes written by anyone, run in a sandbox, that talk to GIRAFE only through a fixed contract (the <em>host API</em>). It runs entirely on the user's computer: a Node.js server on <code>127.0.0.1</code> and a web page served by it.</p>
 <table>
   <tr><th>Principle</th><th>What it means in the code</th></tr>
   <tr><td>Zero dependencies</td><td>Node built-in modules only (<code>http</code>, <code>fs</code>, <code>crypto</code>, <code>child_process</code>, <code>diagnostics_channel</code>). No <code>npm install</code>. The page is plain JavaScript modules, no build step.</td></tr>
-  <tr><td>Minimal footprint</td><td>Everything the kit writes is inside its own folder (<code>workspace/</code>, plus <code>.runtime/</code> for a private Node). Deleting the folder removes the kit.</td></tr>
+  <tr><td>Your work survives the kit</td><td>Everything of yours is in one workspace folder in your home, <code>~/GIRAFE kit workspace</code> (<code>kit/home.js</code>), outside the kit's own files: every copy of the kit uses it, and an update or a new download never touches it. The kit's folder holds only the program (plus <code>.runtime/</code> for a private Node). Delete both to remove the kit.</td></tr>
   <tr><td>Same behaviour as GIRAFE</td><td>Core nodes, socket lettering, streams, Collect, the flow socket, node look and colours follow GIRAFE's own code.</td></tr>
   <tr><td>Plugins are untrusted</td><td>Each firing runs in its own process with Node's permission model and no environment; it sees only <code>ctx</code>.</td></tr>
   <tr><td>Keys never leak</td><td>Encrypted at rest, decrypted only for one call to their own service, every outgoing request checked and logged (section 5).</td></tr>
@@ -124,12 +124,14 @@ kit/
   netguard.js           the only way out to the internet, and the watch on everything else
   github.js             your nodes on GitHub (status, save, take GitHub's version, history, diff)
   cache.js              saved answers and pictures
+  home.js               where the workspace is (~/GIRAFE kit workspace), moving an old one there, other kit folders
   store.js              workspace paths, graphs, files
   seed.js               the example graph on first start
   ai/text.js            Anthropic / OpenAI / Gemini text calls, model lists
   ai/gemini-image.js    Gemini image generation (ported from GIRAFE)
 web/                    the page: index.html, app.js, style.css, the two state videos
-workspace/
+workspace/              in the repo: only the shipped nodes, copied into a new home workspace
+~/GIRAFE kit workspace/ your workspace (kit/home.js; GIRAFE_KIT_WORKSPACE names another)
   nodes/&lt;id&gt;/          plugin nodes (manifest.json + node.js); example-upper is the sample
   graphs/               your test graphs (not in git)
   .kit/                 files, keys.json, secret.key, cache.json, github.json, plugin-state.json, backups/ (not in git)
@@ -169,7 +171,9 @@ docs.html               this document</code></pre>
 <p><code>kit/server.js</code>, Node's <code>http</code> module. It listens on <code>127.0.0.1</code> only. Every request must carry <code>Host: localhost</code> or <code>127.0.0.1</code> (stops DNS-rebinding pages), and a write coming from another site's page (<code>Origin</code> header not this kit) is refused.</p>
 <table>
   <tr><th>Route</th><th>Does</th></tr>
-  <tr><td><code>GET /api/info</code></td><td>Kit version, simulated GIRAFE version, host API, workspace path.</td></tr>
+  <tr><td><code>GET /api/info</code></td><td>Kit version, simulated GIRAFE version, host API, workspace path, and <code>migratedFrom</code> when this start moved an old in-folder workspace home.</td></tr>
+  <tr><td><code>GET /api/workspace</code></td><td>The workspace and <code>others</code>: other kit folders (next to this one, in Downloads, Desktop, Documents, home) whose <code>workspace/</code> still holds work: nodes, graphs, keys, GitHub link, signing key.</td></tr>
+  <tr><td><code>POST /api/workspace/import { path }</code></td><td>Brings one of those (only a listed one) into the workspace. A fresh workspace takes everything; otherwise nodes and graphs already here win, and keys, the GitHub link and the signing key come over only when missing (a different one = <code>conflicts</code>). The old folder gets <code>.moved-to</code>; nothing is deleted. Then restarts.</td></tr>
   <tr><td><code>GET /api/compat</code> (<code>?force=1</code>)</td><td>Kit and GIRAFE versions, what doesn't match, the newest kit, how this kit updates (<code>kit/compat.js</code>, <code>kit/updater.js</code>).</td></tr>
   <tr><td><code>POST /api/update</code></td><td>Update the kit: git pull, or the release zip swapped in; then a restart.</td></tr>
   <tr><td><code>GET /api/kinds</code></td><td>Core node kinds and plugin nodes (with manifest problems).</td></tr>

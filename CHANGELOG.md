@@ -3,6 +3,16 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.9.0 (2026-11-10)
+
+- **Your work now lives outside the kit**, in `GIRAFE kit workspace` in your home folder: nodes, test
+  graphs, keys, the GitHub link and the key that signs your nodes. Every copy of the kit uses it, so
+  an update, a new download or a second copy never loses anything again.
+- The first start moves the kit's old `workspace/` folder there by itself (the old folder is left
+  as it was, with a note). If another kit folder in Downloads, Desktop or Documents still holds work,
+  the kit offers to **bring it here** in one click; nothing is overwritten or deleted.
+- The palette shows where your nodes are.
+
 ## 0.8.0 (2026-11-10)
 
 - **Publish on the GIRAFE Market**: 🛒 Market in the top bar links the kit to a market account (same

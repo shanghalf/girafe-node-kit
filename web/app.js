@@ -1100,8 +1100,10 @@ async function runUpdate(draw) {
   S.info = await api('/api/info');
   $('#versionBadge').textContent = `GIRAFE ${S.info.girafe} (simulated) · host API ${S.info.hostApi}`;
   $('#versionBadge').title = `The GIRAFE this kit pretends to be. Kit ${S.info.kit}. Plugins must name host API ${S.info.hostApi}.`;
+  $('#palHint').replaceChildren('Your nodes live in ', el('code', { text: S.info.workspace + (S.info.workspace.includes('\\') ? '\\' : '/') + 'nodes' }), '. Changes are picked up on the next run. Kit updates and new downloads never touch this folder.');
   await loadKinds();
   initCanvas();
+  checkWorkspace();
   $('#graphSel').addEventListener('change', (e) => openGraph(e.target.value));
   $('#newGraph').addEventListener('click', newGraph);
   $('#graphTitle').addEventListener('input', (e) => { S.graph.title = e.target.value; changed({ undoable: false, panel: false }); });
@@ -1314,4 +1316,69 @@ async function ghHistory(id, name) {
           catch (e) { alert(e.message); }
         } }))) : [el('div', { class: 'muted', text: 'No version on GitHub yet.' })]));
   } catch (e) { ghErr(body, e); }
+}
+
+
+// ---------- where your work lives (kit/home.js) ----------
+// One folder in your home, shared by every copy of the kit, so a new download never hides your work.
+// On start: say so once if old work was just moved there, and offer to bring work still sitting in
+// another kit folder (an older download in Downloads, Desktop or Documents).
+async function checkWorkspace() {
+  let w;
+  try { w = await api('/api/workspace'); } catch { return; }
+  let seen = {};
+  try { seen = JSON.parse(localStorage.getItem('kit.ws.dismissed') || '{}'); } catch {}
+  const others = (w.others || []).filter((o) => !seen[o.path]);
+  if (S.info.migratedFrom) {
+    dialog('📦 Your work has a permanent home',
+      el('p', { class: 'desc', text: 'Your nodes, graphs, keys, GitHub link and signing key were copied from the kit\'s own folder to:' }),
+      el('div', { class: 'box' }, el('code', { text: w.root })),
+      el('p', { class: 'desc', text: 'Every copy of the kit on this computer now uses that folder. Updating the kit, or downloading it again, can no longer lose your work. The old folder was left as it was.' }),
+      others.length ? el('button', { class: 'primary', text: 'Next', onclick: () => offerOthers(others, w.root) }) : null);
+    return;
+  }
+  if (others.length) offerOthers(others, w.root);
+}
+function describeKit(o) {
+  const bits = [];
+  if (o.nodes.length) bits.push(`${o.nodes.length} node${o.nodes.length > 1 ? 's' : ''}: ${o.nodes.join(', ')}`);
+  if (o.graphs) bits.push(`${o.graphs} graph${o.graphs > 1 ? 's' : ''}`);
+  if (o.keys) bits.push('your keys');
+  if (o.github) bits.push('the GitHub link');
+  if (o.authorKey) bits.push('your signing key');
+  if (o.girafe) bits.push('the GIRAFE connection');
+  if (o.market) bits.push('the Market connection');
+  return bits.join(' · ');
+}
+function offerOthers(others, root) {
+  const out = el('div');
+  const rows = others.map((o) => {
+    const status = el('div', { class: 'muted' });
+    const btn = el('button', { class: 'primary', text: 'Bring it here', onclick: async () => {
+      btn.disabled = true; status.textContent = 'Copying…';
+      try {
+        const r = await api('/api/workspace/import', { method: 'POST', body: JSON.stringify({ path: o.path }) });
+        const got = [r.nodes.length ? `${r.nodes.length} node${r.nodes.length > 1 ? 's' : ''}` : null, r.graphs ? `${r.graphs} graph${r.graphs > 1 ? 's' : ''}` : null, r.keys ? 'keys' : null, r.github ? 'GitHub link' : null, r.authorKey ? 'signing key' : null, r.girafe ? 'GIRAFE connection' : null, r.market ? 'Market connection' : null].filter(Boolean);
+        let text = got.length ? `✓ Brought here: ${got.join(', ')}.` : '✓ Nothing new: everything was already here.';
+        if (r.skippedNodes.length) text += ` Kept the copies already here of: ${r.skippedNodes.join(', ')}.`;
+        if (r.conflicts.length) text += ` This folder already has its own ${r.conflicts.join(', ')}; the other one was left in ${o.path}.`;
+        status.textContent = text;
+        if (r.restart === 'manual') status.textContent += ' Close the kit and start it again to use them.';
+        else { status.textContent += ' Restarting…'; setTimeout(function wait() { fetch('/api/info', { cache: 'no-store' }).then(() => location.reload(), () => setTimeout(wait, 800)); }, 1800); }
+      } catch (e) { status.textContent = '⚠️ ' + e.message; btn.disabled = false; }
+    } });
+    const later = el('button', { text: 'Not now', onclick: () => { try { const d = JSON.parse(localStorage.getItem('kit.ws.dismissed') || '{}'); d[o.path] = Date.now(); localStorage.setItem('kit.ws.dismissed', JSON.stringify(d)); } catch {} row.remove(); if (!out.querySelector('.box')) $('#keysDialog').hidden = true; } });
+    const row = el('div', { class: 'box' },
+      el('div', { class: 'box-title', style: { textTransform: 'none', letterSpacing: '0' }, text: o.path }),
+      el('div', { class: 'desc', text: describeKit(o) }),
+      o.modifiedAt ? el('div', { class: 'muted', text: 'Last changed ' + String(o.modifiedAt).slice(0, 16).replace('T', ' ') }) : null,
+      el('div', { class: 'row', style: { marginTop: '8px' } }, btn, later), status);
+    return row;
+  });
+  out.replaceChildren(...rows);
+  dialog('📦 Work found in another kit folder',
+    el('p', { class: 'desc', text: 'Another copy of the kit on this computer still holds work of yours. Bring it into your workspace so this kit has it:' }),
+    el('div', { class: 'muted' }, 'Your workspace: ', el('code', { text: root })),
+    out,
+    el('div', { class: 'caps', text: 'Nothing is overwritten: nodes already here stay as they are, and keys or the signing key come over only when this workspace has none. The other folder is left untouched.' }));
 }

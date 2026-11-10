@@ -167,11 +167,16 @@ async function start({ root = ROOT } = {}) {
 }
 
 // The new version is up: keep it, tidy old backups (the two newest stay).
+// An update started by a kit before 0.9.0 wrote pending.json in the kit's own workspace/ folder
+// (the watcher still running reads it there): confirm that one too, or a later crash would roll back.
+const LEGACY_PENDING = path.join(ROOT, 'workspace', '.kit', 'update', 'pending.json');
 function confirm() {
-  const p = readJson(PENDING());
+  let file = PENDING();
+  let p = readJson(file);
+  if (!p && path.resolve(LEGACY_PENDING) !== path.resolve(file)) { p = readJson(LEGACY_PENDING); file = LEGACY_PENDING; }
   if (!p) return null;
   writeJson(LAST(), { ok: true, from: p.from, to: p.to, mode: p.mode, at: new Date().toISOString() });
-  fs.rmSync(PENDING(), { force: true });
+  fs.rmSync(file, { force: true });
   try {
     const old = fs.readdirSync(dir()).filter((d) => d.startsWith('backup-')).sort().reverse().slice(2);
     for (const d of old) fs.rmSync(path.join(dir(), d), { recursive: true, force: true });
@@ -193,4 +198,4 @@ async function rollback() {
   return { ...p, error };
 }
 
-module.exports = { method, info, start, confirm, rollback, unpack, RESTART_CODE, KEEP };
+module.exports = { method, info, start, confirm, rollback, unpack, restartSoon, RESTART_CODE, KEEP };

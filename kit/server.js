@@ -20,6 +20,7 @@ const compat = require('./compat');
 const updater = require('./updater');
 const nodeRuns = require('./node-runs');
 const github = require('./github');
+const home = require('./home');
 
 const WEB = path.join(__dirname, '..', 'web');
 const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
@@ -62,7 +63,16 @@ async function handle(req, res) {
   // A page from another site must not drive the kit: only same-origin requests write.
   if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'cross-site request refused' });
 
-  if (req.method === 'GET' && p === '/api/info') return send(res, 200, { kit: version.KIT_VERSION, girafe: version.GIRAFE_VERSION, hostApi: version.HOST_API, workspace: store.ROOT });
+  if (req.method === 'GET' && p === '/api/info') return send(res, 200, { kit: version.KIT_VERSION, girafe: version.GIRAFE_VERSION, hostApi: version.HOST_API, workspace: store.ROOT, workspaceMode: home.resolve().mode, migratedFrom: home.resolve().migratedFrom });
+  // Your work in one home folder (kit/home.js); other kit folders still holding work can be brought here.
+  if (req.method === 'GET' && p === '/api/workspace') return send(res, 200, { root: store.ROOT, mode: home.resolve().mode, others: home.findOtherKits() });
+  if (req.method === 'POST' && p === '/api/workspace/import') {
+    try {
+      const b = await readJson(req);
+      const r = home.importFrom(b.path);
+      return send(res, 200, { ...r, restart: updater.restartSoon() });
+    } catch (e) { return send(res, e.status || 500, { error: e.message }); }
+  }
   // Versions both ways (kit/compat.js) and "Update the kit" (kit/updater.js).
   if (req.method === 'GET' && p === '/api/compat') {
     try { return send(res, 200, { ...(await compat.status({ force: url.searchParams.get('force') === '1' })), update: { ...updater.info(), ...(await updater.method()) } }); }

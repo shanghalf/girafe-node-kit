@@ -20,9 +20,23 @@ remove the kit, delete the folder.
 
 Developers: `node kit.js` does the same with your own Node 22+.
 
+## Where your work is kept
+
+Your nodes, test graphs, keys, the GitHub link and the key that signs your nodes live in one folder
+in your home, **outside the kit's own folder**:
+
+- Windows: `C:\Users\<you>\GIRAFE kit workspace`
+- Mac: `/Users/<you>/GIRAFE kit workspace`
+
+Every copy of the kit on your computer opens that same folder, so updating the kit, downloading it
+again or unzipping it somewhere else never loses anything. Kits before 0.9.0 kept this inside their
+own `workspace/` folder: the first start of 0.9.0 copies it home by itself, and if it finds another
+kit folder with work in Downloads, Desktop or Documents it offers to bring it in (nothing is
+overwritten, nothing is deleted). Back this folder up like any of your documents.
+
 ## Make a node
 
-1. Copy `workspace/nodes/example-upper` to `workspace/nodes/my-node`.
+1. In your workspace, copy `nodes/example-upper` to `nodes/my-node`.
 2. In `manifest.json`, set `"id": "my-node"` and a name.
 3. Edit `node.js`.
 4. Your node appears under **Your nodes**. Wire it, run, read its note and log in the panel.
@@ -85,8 +99,8 @@ Name the pictures `01-…`, `02-…` to set their order. `market/` is never pack
 The kit and GIRAFE check each other's version. When they don't match, a button at the top says
 so (⛔ the kit is too old for GIRAFE, ⚠️ GIRAFE doesn't run this kind of node yet, ⬆ a newer kit).
 **🔄 Versions and updates → ⬆ Update the kit** downloads the new version, keeps a copy of the old
-one, restarts and goes back by itself if the new one doesn't start. Your nodes, graphs and keys
-(`workspace/`) are never touched. A git clone is updated with `git pull`.
+one, restarts and goes back by itself if the new one doesn't start. Your workspace (nodes, graphs,
+keys) is outside the kit and never touched. A git clone is updated with `git pull`.
 
 ## What's inside
 

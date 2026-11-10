@@ -1,13 +1,15 @@
-// Everything the kit keeps lives in one folder: workspace/. No database.
+// Everything the kit keeps lives in one folder, the workspace: "GIRAFE kit workspace" in your home
+// folder (kit/home.js), outside the kit's own files. No database.
 //   workspace/nodes/<id>/        your plugin nodes (manifest.json + node.js)
 //   workspace/graphs/<id>.json   your test graphs
-//   workspace/.kit/files/        pictures added to Image nodes, files nodes produced
+//   workspace/.kit/              keys, links, the signing key; .kit/files/ pictures and files
 // Delete the folder and the kit has left nothing behind.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const ROOT = path.resolve(process.env.GIRAFE_KIT_WORKSPACE || path.join(__dirname, '..', 'workspace'));
+const home = require('./home');
+const ROOT = home.resolve().root;
 const NODES = path.join(ROOT, 'nodes');
 const GRAPHS = path.join(ROOT, 'graphs');
 const FILES = path.join(ROOT, '.kit', 'files');
