@@ -692,16 +692,8 @@ function marketBox(id, kind, name, version) {
   const out = el('div', { class: 'muted', 'data-market': key });
   const say = (t) => { S.marketMsg[key] = t; for (const n of document.querySelectorAll(`[data-market="${key}"]`)) n.textContent = t; out.textContent = t; };
   if (S.marketMsg[key]) out.textContent = S.marketMsg[key];
-  const info = el('div', { class: 'caps' });
-  const paintInfo = (L) => {
-    const imgs = L.media.filter((m) => m.kind === 'image').length; const vids = L.media.filter((m) => m.kind === 'video').length;
-    info.replaceChildren(L.listing || L.media.length || L.cover
-      ? `Market page: ${L.listing ? 'listing.json' : 'no listing.json'} · ${L.cover ? `tile background ${L.cover.name}` : 'no tile background (cover.png)'} · ${imgs} picture${imgs === 1 ? '' : 's'} · ${vids} video${vids === 1 ? '' : 's'} (${L.dir}).`
-      : `Add pictures, a short video and a listing.json in ${L.dir} to dress up its market page.`,
-    ...L.problems.map((p) => el('div', { class: 'v-prob warn', text: p })));
-  };
-  if (S.listings[key]) paintInfo(S.listings[key]);
-  else api(`/api/market/listing/${id}`).then((L) => { S.listings[key] = L; paintInfo(L); }).catch(() => {});
+  const info = el('div', { class: 'caps', text: 'After submitting, add its pictures, videos and texts on its market page (a new version starts with the page of the one before).' });
+  const after = el('div', { class: 'row' });
   const notes = el('input', { type: 'text', placeholder: 'What changed in this version (optional)' });
   const submit = async () => {
     if (!S.market?.connected) return openMarket(() => submit());
@@ -712,41 +704,78 @@ function marketBox(id, kind, name, version) {
       const extra = [r.sent.listing ? 'its text' : null, r.sent.cover ? 'its tile background' : null, r.sent.media ? `${r.sent.media} picture${r.sent.media === 1 ? '' : 's'}/video${r.sent.media === 1 ? '' : 's'}` : null].filter(Boolean).join(' and ');
       say(`✓ ${name} ${r.version} is waiting for review${extra ? `, with ${extra}` : ''}.${r.sent.problems.length ? ' ⚠️ ' + r.sent.problems.join(' · ') : ''}`);
       notes.value = '';
-    } catch (e) { say('⚠️ ' + e.message); if (e.needsLink || /Connect/.test(e.message)) loadMarket(); }
+      after.replaceChildren(marketPageBtn(r.submission.id, '✏️ Dress up its market page'));
+    } catch (e) {
+      say('⚠️ ' + e.message); if (e.needsLink || /Connect/.test(e.message)) loadMarket();
+      if (e.code === 'pending') after.replaceChildren(marketPageBtn(null, '✏️ Open what is waiting on the market'));
+    }
   };
   return el('div', { class: 'market-box' },
     el('div', { class: 'box-title', text: '🛒 GIRAFE Market' }),
     el('div', { class: 'caps', text: 'Offer it to everyone: an admin reviews each version before it shows up on the market.' }),
     info, el('div', { class: 'field' }, notes),
     el('div', { class: 'row' }, el('button', { class: 'market-btn', text: S.market?.connected ? (kind === 'pack' ? '🛒 Submit the pack to the market' : '🛒 Submit to the market') : '🛒 Connect and submit', onclick: submit })),
-    out);
+    out, after);
+}
+// Opens a submission's page editor on the market (or the submissions list).
+function marketPageBtn(subId, text) {
+  const url = `${S.market?.base || 'https://market.girafe.live'}/submissions${subId ? '/' + subId : ''}`;
+  return el('button', { class: 'primary', text, onclick: () => window.open(url, '_blank', 'noopener') });
 }
 function openMarket(after) {
   const ov = $('#keysDialog');
   let poll = null;
   const close = () => { clearTimeout(poll); ov.hidden = true; };
-  const list = el('div', { class: 'market-subs' });
+  const list = el('div', { class: 'market-subs' }, el('div', { class: 'muted', text: 'Asking the market…' }));
+  // What you can publish (your packs, and your nodes outside a pack) with where each stands on the
+  // market and the one thing to do next. Disconnecting is not the way to do anything here.
   const loadSubs = async () => {
-    try {
-      const d = await api('/api/market/submissions');
-      const tag = { pending: '⏳ waiting for review', approved: '✓ approved', rejected: '✕ not accepted', withdrawn: 'withdrawn', superseded: 'replaced by a newer version' };
-      list.replaceChildren(el('div', { class: 'box-title', text: 'My submissions' }),
-        ...(d.submissions.length ? d.submissions.slice(0, 12).map((s) => el('div', { class: `market-sub ${s.status}` },
-          el('b', { text: `${s.kind === 'gpack' ? '📦' : '🧩'} ${s.name} ${s.version}` }), ' ', el('span', { text: tag[s.status] || s.status }),
-          s.reason ? el('div', { class: 'caps', text: `Reviewer: ${s.reason}` }) : null)) : [el('div', { class: 'muted', text: 'Nothing submitted yet.' })]),
-        el('div', { class: 'row' }, el('button', { class: 'link', text: `Open ${new URL(S.market.base).host}/submissions`, onclick: () => window.open(`${S.market.base}/submissions`, '_blank', 'noopener') })));
-    } catch (e) { list.replaceChildren(el('div', { class: 'problems', text: e.message })); }
+    let d;
+    try { d = await api('/api/market/submissions'); } catch (e) { return list.replaceChildren(el('div', { class: 'problems', text: e.message })); }
+    const base = S.market.base;
+    const inPack = new Set((S.packs || []).flatMap((pk) => pk.nodes));
+    const shipped = new Set(S.info?.shipped || ['example-upper', 'gemini-image']);
+    const mine = [
+      ...(S.packs || []).map((pk) => ({ id: pk.id, kind: 'pack', name: pk.name, version: pk.version })),
+      ...S.pluginList.filter((k) => !inPack.has(k.id) && !shipped.has(k.id)).map((k) => ({ id: k.id, kind: 'node', name: k.name, version: k.version })),
+    ];
+    const latestOf = (id) => d.submissions.find((s) => s.packageId === id && s.status !== 'superseded');
+    const msg = el('div', { class: 'muted' });
+    const rows = mine.map((it) => {
+      const s = latestOf(it.id);
+      const same = s && s.version === it.version;
+      const row = el('div', { class: 'market-sub' });
+      const send = async (btn) => {
+        btn.disabled = true; msg.textContent = `Submitting ${it.name} ${it.version}…`;
+        try { const r = await api('/api/market/submit', { method: 'POST', body: JSON.stringify({ id: it.id, kind: it.kind, notes: '' }) }); msg.textContent = `✓ ${it.name} ${r.version} is waiting for review. Dress up its page now.`; await loadSubs(); }
+        catch (e) { msg.textContent = '⚠️ ' + e.message; btn.disabled = false; }
+      };
+      let state; const acts = [];
+      if (same && s.status === 'pending') { state = '⏳ waiting for review'; acts.push(marketPageBtn(s.id, '✏️ Edit its market page')); }
+      else if (same && s.status === 'approved') { state = '✓ on the market'; if (s.itemId) acts.push(el('button', { text: 'See it', onclick: () => window.open(`${base}/item/${s.itemId}`, '_blank', 'noopener') })); acts.push(el('span', { class: 'caps', text: 'Raise its version to send changes.' })); }
+      else {
+        state = !s ? 'not on the market yet' : s.status === 'rejected' ? `✕ ${s.version} not accepted${s.reason ? `: ${s.reason}` : ''}` : s.status === 'withdrawn' ? `${s.version} withdrawn` : `${s.version} on the market, ${it.version} here`;
+        const b = el('button', { class: 'primary', text: `🛒 Submit ${it.version}`, onclick: () => send(b) }); acts.push(b);
+        if (s && same) acts.push(el('span', { class: 'caps', text: `${it.version} was already sent once: raise the version if the market refuses it.` }));
+      }
+      row.replaceChildren(el('div', {}, el('b', { text: `${it.kind === 'pack' ? '📦' : '🧩'} ${it.name} ${it.version}` }), ' ', el('span', { class: 'muted', text: state })), el('div', { class: 'row' }, ...acts));
+      return row;
+    });
+    list.replaceChildren(el('div', { class: 'box-title', text: 'Your nodes and packs' }),
+      ...(rows.length ? rows : [el('div', { class: 'muted', text: 'No node of yours yet. Make one, then come back here to publish it.' })]), msg,
+      el('div', { class: 'row' }, el('button', { class: 'link', text: `All my submissions on ${new URL(base).host} ↗`, onclick: () => window.open(`${base}/submissions`, '_blank', 'noopener') })));
   };
   const draw = () => {
     const L = S.market || {};
     const body = [];
     if (L.connected) {
-      body.push(el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Connected' }),
-        el('div', { class: 'caps', text: `Publishing as ${L.account?.name || ''}${L.account?.email ? ' · ' + L.account.email : ''} on ${L.base} since ${String(L.linkedAt || '').slice(0, 10)}` }),
-        el('div', { class: 'caps', text: 'The kit can submit your nodes and packs for review and read where they stand, nothing else. The link is stored like your keys (encrypted, only ever sent to the market).' })));
+      body.push(el('div', { class: 'caps' }, `✓ Publishing as ${L.account?.name || ''}${L.account?.email ? ' · ' + L.account.email : ''} on ${new URL(L.base).host}`));
+      if (after) body.push(el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Continue', onclick: () => { close(); after(); } })));
       body.push(list); loadSubs();
-      body.push(el('div', { class: 'row' }, el('button', { class: 'danger', text: 'Disconnect', onclick: async () => { await api('/api/market/disconnect', { method: 'POST' }); await loadMarket(); await loadKeys(); draw(); renderPanel(); } }),
-        after ? el('button', { class: 'primary', text: 'Continue', onclick: () => { close(); after(); } }) : null));
+      body.push(el('div', { class: 'row', style: { marginTop: '6px' } }, el('button', { class: 'link muted', text: 'Use another market account…', title: 'Disconnects this kit from the market; you connect again with the other account.', onclick: async () => {
+        if (!confirm(`Disconnect this kit from ${L.account?.name || 'this account'} on the market? You will connect again with the other account. Nothing on the market is deleted.`)) return;
+        await api('/api/market/disconnect', { method: 'POST' }); await loadMarket(); await loadKeys(); draw(); renderPanel();
+      } })));
     } else if (L.pending && L.pending.state === 'waiting') {
       body.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Approve on the market' }),
         el('div', { class: 'link-code', text: L.pending.userCode }),
@@ -757,7 +786,7 @@ function openMarket(after) {
     } else {
       if (L.pending && L.pending.state !== 'approved') body.push(el('div', { class: 'problems', text: L.pending.state === 'denied' ? 'You said no on the market. Nothing was linked.' : 'The code expired. Start again.' }));
       body.push(el('p', { class: 'desc', text: 'Publish your nodes and packs on the GIRAFE Market, where other people can install them in one click. Connect once with your market account (you sign in on the market itself, never in the kit), then press "Submit to the market" on a node or a pack.' }));
-      body.push(el('div', { class: 'caps', text: 'Dress up its page: put pictures (PNG, JPEG, WebP, GIF, up to 8) and short videos (MP4 or WebM, up to 2) in a market/ folder inside the node\'s folder (or the pack\'s), named 01-..., 02-... for the order. A cover.png (or .jpg, .webp) there is the background of its tile in the market. A market/listing.json can hold { "tagline", "description", "tags", "captions": { "01-shot.png": "..." }, "i18n": { "fr": {...}, "vi": {...} } }. market/ is never packed: GIRAFE only gets the node.' }));
+      body.push(el('div', { class: 'caps', text: 'Pictures, videos and texts are added on the market itself, right after you submit: no folder to prepare.' }));
       const err = el('div', { class: 'problems' });
       body.push(el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Connect', onclick: async () => {
         try { S.market = await api('/api/market/connect', { method: 'POST' }); draw(); } catch (e) { err.textContent = e.message; }

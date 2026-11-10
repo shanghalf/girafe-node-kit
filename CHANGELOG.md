@@ -12,6 +12,11 @@ with what plugin authors need to do.
   as it was, with a note). If another kit folder in Downloads, Desktop or Documents still holds work,
   the kit offers to **bring it here** in one click; nothing is overwritten or deleted.
 - The palette shows where your nodes are.
+- **🛒 Market is now where you publish**: it lists your nodes and packs, where each stands on the
+  market and the next step (Submit, Edit its market page, See it). Disconnecting is a small "Use another
+  market account" link with a confirmation, no longer the only button.
+- **No more `market/` folder to prepare**: pictures, videos, texts and the tile background are set in
+  the market's page editor, which opens after you submit. An existing `market/` folder still works.
 
 ## 0.8.0 (2026-11-10)
 
