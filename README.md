@@ -91,22 +91,36 @@ They need your own API key: **🔑 Keys** at the top, paste it, save.
 - The same request twice gives the saved answer or picture, with no new call and no cost.
 - Nodes you build as plugins never see keys.
 
-## Share a node
+## Ship a node
 
-In a plugin node's panel:
-- **📦 Pack** makes a signed `.gnode` file of it.
-- **☁️ Send to my GIRAFE** puts it in your GIRAFE account, where it works on all your devices and
-  only you see it, with the account you signed in with.
+One button puts a node where it belongs. In a plugin node's **🛠 Kit tools** tab - or from
+**🔗 Chain → What you have built** - the **🚀 Ship** card shows the three places it lives and
+where each one stands:
+
+| | |
+|---|---|
+| **GitHub** | your own repository of nodes, so they survive this computer |
+| **GIRAFE** | your account, where the node works on all your devices and only you see it |
+| **Market** | everyone, if you want to publish it |
+
+Tick the ones you want, write what changed, press **🚀 Ship**. The kit works the version number
+out for you: nothing rises unless it has to, and a place that already holds this number with
+*different* files forces the smallest rise - two different things can't both be 1.2.0. In a pack,
+only the members whose files actually changed move. What you write goes into the node's
+`CHANGELOG.md`, onto the "new / updated" badge in GIRAFE and into the version history on the
+market, so a version always says why it exists. The three steps run in order and stop at the
+first failure, with its name. **📦 Just the file** still makes the signed `.gnode`/`.gpack` on
+its own.
 
 Nodes made to work together (a 3D chain, say) can form a **pack**: a folder with a `pack.json`
-listing them (see HOST_API.md). They show under the pack's title, share one key, and are sent to
-GIRAFE together with **☁️ Send the pack**.
+listing them (see HOST_API.md). They show under the pack's title, share one key, and ship as one.
 
-To offer a node or a pack to everyone, open **🛒 Market** (connect once with your market account).
-It lists your nodes and packs with where each one stands and the one thing to do next: **Submit**,
-**Edit its market page**, or **See it**. Pictures, videos and texts are added on the market itself,
-in the page editor that opens after you submit; a new version starts with the page of the one before.
-Every version is reviewed before anyone can install it.
+Publishing needs a market account, connected once (**🔗 Chain → The market**; when your GIRAFE
+and the market know each other, your GIRAFE vouches for the kit and there is nothing to approve
+twice). Pictures, videos and texts are added on the market itself, in the page editor the card
+links to after a submission; a new version starts with the page of the one before. The first
+version of anything is reviewed by an admin; after that, a publisher the market trusts goes
+straight out.
 
 ## Updates
 

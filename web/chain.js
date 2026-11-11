@@ -7,7 +7,7 @@
 //
 // It draws from what app.js already loaded (S.compat, S.link, S.gh, S.market, S.settings); every
 // action is a callback app.js passes in, so this file holds no fetching and no state of its own.
-// Row 5 (packs, with the Ship button) comes with phase 5 of the redesign.
+// Row 5 lists what you have built and sends you to its Ship card (web/ship.js).
 
 export const chainDot = (tone) => ({ ok: '🟢', warn: '🟡', bad: '🔴', off: '⚪' }[tone] || '⚪');
 
@@ -92,6 +92,37 @@ export function chainRows(S) {
     lines: mk.connected ? [] : ['Only needed to publish a node for other people. Your own nodes work in GIRAFE without it.',
       ...(link.connected ? ['Signed in to GIRAFE, so there is nothing to approve again: it vouches for you.'] : [])],
     actions: [{ key: 'market', label: mk.connected ? '🛒 Open the market' : '🛒 Connect' }],
+  });
+
+  // 5. What you have built, and the one button that puts it everywhere. The row stays cheap: it
+  // says only what the page already knows (the repository's own state); where GIRAFE and the
+  // market stand is asked by the Ship card itself, on the node it is about.
+  const kinds = (S.pluginList || []).filter((k) => !k.missing);
+  const packs = S.packs || [];
+  const inPack = new Set(packs.flatMap((p) => p.nodes || []));
+  const things = [
+    ...packs.map((p) => ({ id: p.id, name: p.name, version: p.version, kind: 'pack', count: (p.nodes || []).length })),
+    ...kinds.filter((k) => !inPack.has(k.id) && !packs.some((p) => p.id === k.id)).map((k) => ({ id: k.id, name: k.name, version: k.version, kind: 'node' })),
+  ];
+  const stateOfThing = (t) => {
+    if (!gh.connected) return '';
+    const ids = t.kind === 'pack' ? [t.id, ...(packs.find((p) => p.id === t.id)?.nodes || [])] : [t.id];
+    const ss = ids.map((id) => (gh.nodes || {})[id]?.state || 'new');
+    if (ss.some((x) => x === 'conflict')) return ' · conflict in the repository';
+    if (ss.every((x) => x === 'new')) return ' · not in the repository yet';
+    if (ss.some((x) => ['changed', 'new', 'deleted'].includes(x))) return ' · changes not saved';
+    return ' · saved';
+  };
+  rows.push({
+    id: 'built',
+    icon: '🚀',
+    title: 'What you have built',
+    tone: things.length ? 'ok' : 'off',
+    state: things.length ? `${things.length} to ship` : 'Nothing of your own yet',
+    lines: things.length
+      ? things.map((t) => `${t.kind === 'pack' ? `📦 ${t.name} ${t.version} (${t.count} nodes)` : `${t.name} ${t.version}`}${stateOfThing(t)}`)
+      : ['Copy the example node, or ask Claude for one. "Ship" then puts it in your repository, your GIRAFE account and (if you want) the market in one go.'],
+    actions: things.map((t) => ({ key: `ship:${t.id}`, label: `🚀 ${t.name}`, primary: things.length === 1 })),
   });
 
   return rows;

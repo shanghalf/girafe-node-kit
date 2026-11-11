@@ -18,9 +18,16 @@ database, files or keys; everything goes through `ctx`.
 workspace/nodes/my-node/
   manifest.json   what the node is and what it needs
   node.js         the code
+  CHANGELOG.md    optional: what each version changed
+  market/         optional: the pictures and texts of its market page
 ```
 
 The folder name is the node's id: lowercase letters, digits and dashes.
+
+`CHANGELOG.md` is yours to write, and **🚀 Ship** writes into it: what you type as "what changed"
+becomes a `## <version> - <date>` entry at the top, and travels with the version to GIRAFE (the
+new/updated badge) and to the market's version history. A file that isn't there is made on the
+first ship. Nothing reads it back - it is for people.
 
 ### Packs (nodes made for one use)
 

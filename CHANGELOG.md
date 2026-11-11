@@ -32,6 +32,22 @@ so from any computer you can see which of your computers is running what - somet
 can find out by itself. Nothing private is in it: no key, no path, no node contents, and the
 GitHub state is read from disk, never over the network.
 
+**One button: Ship.** Pack, Send to my GIRAFE, Submit to the market and "raise the version by
+hand because GIRAFE refused" were four actions with four rules. A node (or a pack) now has one
+**🚀 Ship** card - in its Kit tools tab, and in the chain's "What you have built" row - showing
+where it stands in all three places at once: GitHub, your GIRAFE account, the market. It works
+out the new version number itself (nothing rises unless something makes it necessary; a target
+holding this number with *different files* forces the smallest rise, and in a pack only the
+members whose files actually changed move), writes what you type into the node's `CHANGELOG.md`,
+and does the three steps in order, turning each column as it goes and stopping at the first
+failure with its name. "📦 Just the file" is still there for the signed package on its own.
+
+**A version now says why it exists.** What you write in Ship travels with the version: GIRAFE
+shows it on the new/updated badge and in Settings › Node kit, and the market's page shows it
+in the version history (where an update must now carry a line - an empty "what changed" is
+refused). A publisher the market trusts has their updates go straight out instead of waiting
+for review, and an admin can pull one back.
+
 Nothing to do for plugin authors. A GIRAFE from before this answers 404 and the kit quietly asks
 the old way, so an older site keeps working.
 

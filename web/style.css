@@ -266,3 +266,35 @@ button.big { min-height: 44px; font-size: 15px; }
 .chain-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #c6cdd8; cursor: pointer; }
 .chain-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .chain-actions:empty { display: none; }
+
+/* Ship (web/ship.js): one card per node or pack - three columns for GitHub, GIRAFE and the
+   market, the version it will become, and one button. Each column turns as its step finishes. */
+.ship-box { border: 1px solid rgba(110,200,255,.40); background: linear-gradient(160deg, rgba(110,200,255,.09), var(--bg) 62%); }
+.ship-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 2px 0 10px; }
+.ship-cell { border: 1px solid #2a2f38; border-top-width: 3px; border-radius: 8px; padding: 7px 9px; background: #15181e; display: block; }
+.ship-cell.ship-ok { border-top-color: #3d9a63; }
+.ship-cell.ship-todo { border-top-color: #c9a227; }
+.ship-cell.ship-new { border-top-color: #4b86c9; }
+.ship-cell.ship-bad { border-top-color: #c14a4a; }
+.ship-cell.ship-off { border-top-color: #454b56; opacity: .68; }
+.ship-cell.ship-cant { cursor: default; }
+.ship-cell:not(.ship-cant) { cursor: pointer; }
+.ship-cell-hd { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.ship-cell-hd input[type=checkbox] { flex: 0 0 auto; width: 14px; height: 14px; margin: 0; }
+.ship-cell-hd b { margin-right: auto; }
+.ship-cell-state { color: #9aa3b0; font-size: 12px; margin-top: 3px; display: flex; align-items: baseline; gap: 5px; line-height: 1.35; }
+.ship-dot { transition: transform .18s ease; }
+.ship-dot.ship-pop { animation: ship-pop .5s ease; }
+@keyframes ship-pop { 0% { transform: scale(.4); } 55% { transform: scale(1.45); } 100% { transform: scale(1); } }
+.ship-version { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ship-bumps { display: flex; gap: 6px; flex-wrap: wrap; }
+.ship-bumps .chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid #343a45; background: #1a1e25; color: #c6cdd8; cursor: pointer; }
+.ship-bumps .chip:disabled { opacity: .45; cursor: default; }
+.ship-bumps .chip.on { border-color: #6ec8ff; color: #cfe9ff; background: rgba(110,200,255,.14); }
+.ship-why { color: #e8c874; }
+.ship-head { font-size: 13px; color: #c6cdd8; margin: 8px 0 6px; }
+.ship-go.busy { opacity: .7; }
+.ship-msg { margin-top: 8px; line-height: 1.45; }
+.ship-recheck, .ship-slot > .link { margin-top: 2px; font-size: 12px; }
+@media (max-width: 720px) { .ship-grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .ship-dot, .ship-dot.ship-pop { animation: none; transition: none; } }

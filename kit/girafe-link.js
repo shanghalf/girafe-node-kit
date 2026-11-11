@@ -24,6 +24,8 @@ const FILE = path.join(store.ROOT, '.kit', 'girafe.json');
 const base = () => (process.env.KIT_GIRAFE_URL || 'https://girafe.live').replace(/\/$/, '');
 // How this kit calls itself in the person's GIRAFE (Settings › Node kit lists one per computer).
 const kitName = () => `GIRAFE node kit on ${os.hostname()}`.slice(0, 80);
+// What changed, kept by GIRAFE with that version and shown in Settings › Node kit.
+const notesQuery = (notes) => (String(notes || '').trim() ? `?notes=${encodeURIComponent(String(notes).trim().slice(0, 2000))}` : '');
 let pending = null; // { deviceCode, userCode, verifyUrl, expiresAt, interval, state, error }
 let timer = null;
 
@@ -145,6 +147,24 @@ async function hello(report) {
   return data;
 }
 
+// What GIRAFE holds right now: every plugin node and pack of this account, with its version,
+// package hash and whether it is switched on (GIRAFE 0.92.0, GET /api/kit/plugins). The Ship card
+// reads it to tell "already there" from "behind" without the person going to look. A GIRAFE from
+// before it answers 404 and we return null, which the matrix shows as "can't tell".
+async function plugins() {
+  const s = read();
+  if (!s?.keyId) throw Object.assign(new Error('Not signed in.'), { status: 401 });
+  const t = keys.use(s.keyId, 'girafe');
+  let res;
+  try { res = await netguard.send(base() + '/api/kit/plugins', { method: 'GET', headers: { authorization: `Bearer ${t.value}`, 'x-girafe-kit-version': KIT_VERSION } }, { service: 'girafe', key: t.value, keyLabel: 'GIRAFE link', purpose: 'Ask GIRAFE what it already holds' }); }
+  catch (e) { if (e instanceof netguard.Blocked) throw e; throw new Error(`Can't reach GIRAFE (${base()}): ${e.message}`); }
+  if (res.status === 404) return null;
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw Object.assign(new Error(data.error || 'Signed out.'), { status: 401 });
+  if (!res.ok) throw new Error(data.error || `GIRAFE answered HTTP ${res.status}`);
+  return { nodes: Array.isArray(data.nodes) ? data.nodes : [], packs: Array.isArray(data.packs) ? data.packs : [] };
+}
+
 // Ask GIRAFE to vouch for this kit to GIRAFE Market: a short, signed note about the account, so
 // the person approves once instead of twice (kit/market-link.js). GIRAFE answers 503 when the two
 // sites share no secret; the caller then falls back to the market's own device flow.
@@ -181,7 +201,7 @@ function raiseVersion(id, installed) {
 }
 
 // Pack the node and send it to the linked account: a new node, or a new version of it.
-async function send(id) {
+async function send(id, { notes = '' } = {}) {
   const s = read();
   if (!s?.keyId) throw Object.assign(new Error('Connect to GIRAFE first.'), { needsLink: true });
   const packId = require('./packs').membership()[id];
@@ -192,7 +212,7 @@ async function send(id) {
   if (why) throw Object.assign(new Error(why.text), { code: why.code });
   const t = keys.use(s.keyId, 'girafe');
   try {
-    const r = await post('/api/kit/packages', packed.pkg, { token: t.value, purpose: `Send "${id}" ${packed.version} to my GIRAFE` });
+    const r = await post(`/api/kit/packages${notesQuery(notes)}`, packed.pkg, { token: t.value, purpose: `Send "${id}" ${packed.version} to my GIRAFE` });
     return { ...r, version: packed.version, hash: packed.hash, size: packed.size };
   } catch (e) {
     if (e.status === 401) { keys.remove(s.keyId); try { fs.unlinkSync(FILE); } catch {} throw Object.assign(new Error('GIRAFE no longer accepts this computer\'s link (revoked or expired). Connect again.'), { needsLink: true }); }
@@ -202,14 +222,14 @@ async function send(id) {
     if (held && !send._again) {
       const next = raiseVersion(id, held);
       send._again = true;
-      try { const r = await send(id); return { ...r, raisedTo: next }; } finally { send._again = false; }
+      try { const r = await send(id, { notes }); return { ...r, raisedTo: next }; } finally { send._again = false; }
     }
     throw e;
   }
 }
 
 // Send a whole pack: its nodes are installed together, under the pack's title, with one set of keys.
-async function sendPack(packId) {
+async function sendPack(packId, { notes = '' } = {}) {
   const s = read();
   if (!s?.keyId) throw Object.assign(new Error('Connect to GIRAFE first.'), { needsLink: true });
   const packed = pkgs.packPack(packId);
@@ -217,7 +237,7 @@ async function sendPack(packId) {
   if (why) throw Object.assign(new Error(why.text), { code: why.code });
   const t = keys.use(s.keyId, 'girafe');
   try {
-    const r = await post('/api/kit/packs', packed.pkg, { token: t.value, purpose: `Send the pack "${packed.pack.name}" ${packed.version} to my GIRAFE` });
+    const r = await post(`/api/kit/packs${notesQuery(notes)}`, packed.pkg, { token: t.value, purpose: `Send the pack "${packed.pack.name}" ${packed.version} to my GIRAFE` });
     return { ...r, version: packed.version, hash: packed.hash, size: packed.size };
   } catch (e) {
     if (e.status === 401) { keys.remove(s.keyId); try { fs.unlinkSync(FILE); } catch {} throw Object.assign(new Error('GIRAFE no longer accepts this computer\'s link (revoked or expired). Connect again.'), { needsLink: true }); }
@@ -225,4 +245,4 @@ async function sendPack(packId) {
   }
 }
 
-module.exports = { status, connect, disconnect, send, sendPack, raiseVersion, base, whoami, hello, marketHandoff, forget };
+module.exports = { status, connect, disconnect, send, sendPack, raiseVersion, base, whoami, hello, plugins, marketHandoff, forget };

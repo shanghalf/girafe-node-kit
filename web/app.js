@@ -2,6 +2,7 @@
 import { createGirafePanel } from './girafe-panel.js';
 import { tasksField } from './tasks-field.js';
 import { renderChain, chainRows } from './chain.js';
+import { renderShip, shipColumns, shipDot } from './ship.js';
 const $ = (s) => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
@@ -609,68 +610,68 @@ async function loadLink() {
   drawChainBtn();
   if (!(document.activeElement?.matches('input, textarea, select') && $('#panel').contains(document.activeElement))) renderPanel();
 }
-S.packMsg = {};
 const packOf = (id) => (S.packs || []).find((p) => p.id === id) || null;
 function packBox(k) {
   const pk = k.pack && packOf(k.pack);
   if (pk) return packSendBox(pk);
-  const out = el('div', { class: 'muted', 'data-pack': k.id });
-  // The panel may be redrawn while a send is under way: write into whichever copy is on screen.
-  const paint = (node, m) => node.replaceChildren(m.t, ...(m.link ? [el('a', { href: m.link.url, download: m.link.name, text: 'download' })] : []));
-  const say = (t, link) => { S.packMsg[k.id] = { t, link }; paint(out, S.packMsg[k.id]); for (const n of document.querySelectorAll(`[data-pack="${k.id}"]`)) paint(n, S.packMsg[k.id]); };
-  if (S.packMsg[k.id]) say(S.packMsg[k.id].t, S.packMsg[k.id].link);
-  const pack = async () => {
-    say('Packing…');
-    try { const r = await api('/api/pack', { method: 'POST', body: JSON.stringify({ id: k.id }) }); say(`✓ ${r.name} · ${(r.size / 1024).toFixed(1)} KB · signed · `, r); }
-    catch (e) { say('⚠️ ' + e.message); }
-  };
-  const sendIt = async () => {
-    if (!S.link?.connected) return openLink(() => sendIt());
-    say(`Sending ${k.name} ${k.version} to your GIRAFE…`);
-    try { const r = await api('/api/girafe/send', { method: 'POST', body: JSON.stringify({ id: k.id }) }); say(`✓ ${r.message || `${k.name} ${r.version} is in your GIRAFE account.`}`); }
-    catch (e) {
-      say('⚠️ ' + e.message); if (/Connect/.test(e.message)) loadLink();
-      if (e.code) loadCompat(); // GIRAFE said something about versions: show it in the top bar too
-      if (e.code) for (const n of document.querySelectorAll(`[data-pack="${k.id}"]`)) n.append(' ', el('button', { class: 'primary', text: '✨ Align with GIRAFE', onclick: () => openAlign(k.id) }));
-    }
-  };
-  return el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Share this node' }),
-    el('div', { class: 'row' }, el('button', { text: '📦 Pack', title: 'Make a signed .gnode file of this node', onclick: pack }),
-      el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send to my GIRAFE' : '☁️ Connect and send to my GIRAFE', onclick: sendIt })),
-    el('div', { class: 'caps', text: `Version ${k.version}. GIRAFE accepts each version once; if it already has this one, the kit raises the number in manifest.json for you and sends again.` }),
-    S.compat?.girafe?.hostApis && !S.compat.girafe.hostApis.includes(k.hostApi) ? el('div', { class: 'v-prob warn', text: `Written for host API ${k.hostApi}; GIRAFE ${S.compat.girafe.version} runs host API ${S.compat.girafe.hostApis.join(' and ')}. It can't be sent until they match.` }) : null, out,
-    marketBox(k.id, 'node', k.name, k.version));
+  return el('div', {},
+    S.compat?.girafe?.hostApis && !S.compat.girafe.hostApis.includes(k.hostApi)
+      ? el('div', { class: 'box' }, el('div', { class: 'v-prob warn', text: `Written for host API ${k.hostApi}; GIRAFE ${S.compat.girafe.version} runs host API ${S.compat.girafe.hostApis.join(' and ')}. It can't be sent until they match.` }))
+      : null,
+    shipCard(k.id, 'node'));
 }
 // A pack is packed and sent as one: its nodes arrive together in GIRAFE, under its title.
 function packSendBox(pk) {
-  const key = 'pack:' + pk.id;
-  const out = el('div', { class: 'muted', 'data-pack': key });
-  const paint = (node, m) => node.replaceChildren(m.t, ...(m.link ? [el('a', { href: m.link.url, download: m.link.name, text: 'download' })] : []));
-  const say = (t, link) => { S.packMsg[key] = { t, link }; for (const n of document.querySelectorAll(`[data-pack="${key}"]`)) paint(n, S.packMsg[key]); paint(out, S.packMsg[key]); };
-  if (S.packMsg[key]) paint(out, S.packMsg[key]);
-  const pack = async () => {
-    say('Packing…');
-    try { const r = await api('/api/pack', { method: 'POST', body: JSON.stringify({ pack: pk.id }) }); say(`✓ ${r.name} · ${(r.size / 1024).toFixed(1)} KB · signed · `, r); }
-    catch (e) { say('⚠️ ' + e.message); }
-  };
-  const sendIt = async () => {
-    if (!S.link?.connected) return openLink(() => sendIt());
-    say(`Sending the pack ${pk.name} ${pk.version} to your GIRAFE…`);
-    try { const r = await api('/api/girafe/send-pack', { method: 'POST', body: JSON.stringify({ id: pk.id }) }); say(`✓ ${r.message || `${pk.name} ${r.version} is in your GIRAFE account.`}`); }
-    catch (e) {
-      say('⚠️ ' + e.message); if (/Connect/.test(e.message)) loadLink();
-      if (e.code) loadCompat();
-      if (e.code) for (const n of document.querySelectorAll(`[data-pack="${key}"]`)) n.append(' ', el('button', { class: 'primary', text: '✨ Align with GIRAFE', onclick: () => openAlign() }));
-    }
-  };
-  return el('div', { class: 'box' }, el('div', { class: 'box-title', text: `Part of the pack "${pk.name}"` }),
-    el('div', { class: 'caps', text: `${pk.nodes.length} nodes: ${pk.nodes.join(', ')}. They go to GIRAFE together, as one pack with one set of keys (workspace/nodes/${pk.id}/pack.json).` }),
-    pk.problems.length ? el('ul', { class: 'problems' }, ...pk.problems.map((x) => el('li', { text: x }))) : null,
-    el('div', { class: 'row' }, el('button', { text: '📦 Pack', title: 'Make a signed .gpack file of the whole pack', onclick: pack }),
-      el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send the pack to my GIRAFE' : '☁️ Connect and send the pack', onclick: sendIt })),
-    el('div', { class: 'caps', text: `Pack version ${pk.version}. GIRAFE accepts each pack version once: raise "version" in pack.json (and in the manifests of the nodes you changed) before sending again.` }), out,
-    marketBox(pk.id, 'pack', pk.name, pk.version));
+  return el('div', {},
+    el('div', { class: 'box' }, el('div', { class: 'box-title', text: `Part of the pack "${pk.name}"` }),
+      el('div', { class: 'caps', text: `${pk.nodes.length} nodes: ${pk.nodes.join(', ')}. They go to GIRAFE together, as one pack with one set of keys (workspace/nodes/${pk.id}/pack.json).` }),
+      pk.problems.length ? el('ul', { class: 'problems' }, ...pk.problems.map((x) => el('li', { text: x }))) : null),
+    shipCard(pk.id, 'pack'));
 }
+
+// ---------- Ship (web/ship.js) ----------
+// One card per node or pack: where it stands in its four places, and the one button that puts it
+// in all of them. GET /api/ship/<id> asks GIRAFE and the market, so the answer is kept for a
+// moment - the panel is redrawn on every keystroke elsewhere.
+S.ship = {};
+const SHIP_FRESH_MS = 20000;
+function shipCard(id, kind, titled = true) {
+  const box = el('div', { class: 'ship-slot' });
+  const marketPage = () => window.open(`${S.market?.base || 'https://market.girafe.live'}/submissions`, '_blank', 'noopener');
+  const packIt = async () => {
+    const line = el('div', { class: 'muted', text: 'Packing…' });
+    box.append(line);
+    try {
+      const r = await api('/api/pack', { method: 'POST', body: JSON.stringify(kind === 'pack' ? { pack: id } : { id }) });
+      line.replaceChildren(`✓ ${r.name} · ${(r.size / 1024).toFixed(1)} KB · signed · `, el('a', { href: r.url, download: r.name, text: 'download' }));
+    } catch (e) { line.textContent = '⚠️ ' + e.message; }
+  };
+  const paint = (data) => box.replaceChildren(renderShip({
+    el, data, titled, run: (body) => api('/api/ship', { method: 'POST', body: JSON.stringify({ id, ...body }) }),
+    pack: packIt, page: marketPage,
+    reload: () => { delete S.ship[id]; loadKinds().then(() => { loadLink(); loadMarket(); }); },
+  }), el('button', { class: 'link muted ship-recheck', text: '↻ check again', title: 'Ask GitHub, GIRAFE and the market where it stands now', onclick: () => { delete S.ship[id]; load(); } }));
+  const load = () => {
+    const have = S.ship[id];
+    if (have && Date.now() - have.at < SHIP_FRESH_MS) return paint(have.data);
+    box.replaceChildren(el('div', { class: 'box ship-box' }, el('div', { class: 'box-title', text: '🚀 Ship' }), el('div', { class: 'muted', text: 'Looking at where it stands…' })));
+    api(`/api/ship/${id}`).then((data) => { S.ship[id] = { at: Date.now(), data }; paint(data); },
+      (e) => box.replaceChildren(el('div', { class: 'box ship-box' }, el('div', { class: 'box-title', text: '🚀 Ship' }),
+        el('div', { class: 'problems', text: e.message }),
+        el('div', { class: 'row' }, el('button', { text: 'Try again', onclick: load }), el('button', { class: 'link muted', text: '📦 Just the file', onclick: packIt })))));
+  };
+  load();
+  return box;
+}
+
+// The Ship card on its own, from the chain's "what you have built" row: the same card the node's
+// Kit tools tab shows, for a node that may not be on the canvas at all.
+function openShip(id) {
+  const pk = packOf(id);
+  const k = (S.pluginList || []).find((x) => x.id === id);
+  dialog(pk ? `🚀 Ship the pack "${pk.name}"` : `🚀 Ship ${k?.name || id}`, shipCard(id, pk ? 'pack' : 'node', false));
+}
+
 function openLink(after) {
   const ov = $('#keysDialog');
   let poll = null;
@@ -708,41 +709,10 @@ function openLink(after) {
 }
 
 // ---------- the GIRAFE Market (publishing) ----------
-S.market = null; S.listings = {}; S.marketMsg = {};
+S.market = null; S.listings = {};
 async function loadMarket() {
   try { S.market = await api('/api/market'); } catch { S.market = null; }
   drawChainBtn();
-}
-// Under "Share this node": submit it (or its pack) for review on the market, with its market/ folder.
-function marketBox(id, kind, name, version) {
-  const key = `${kind}:${id}`;
-  const out = el('div', { class: 'muted', 'data-market': key });
-  const say = (t) => { S.marketMsg[key] = t; for (const n of document.querySelectorAll(`[data-market="${key}"]`)) n.textContent = t; out.textContent = t; };
-  if (S.marketMsg[key]) out.textContent = S.marketMsg[key];
-  const info = el('div', { class: 'caps', text: 'After submitting, add its pictures, videos and texts on its market page (a new version starts with the page of the one before).' });
-  const after = el('div', { class: 'row' });
-  const notes = el('input', { type: 'text', placeholder: 'What changed in this version (optional)' });
-  const submit = async () => {
-    if (!S.market?.connected) return openMarket(() => submit());
-    delete S.listings[key];
-    say(`Submitting ${name} ${version} to the market…`);
-    try {
-      const r = await api('/api/market/submit', { method: 'POST', body: JSON.stringify({ id, kind, notes: notes.value }) });
-      const extra = [r.sent.listing ? 'its text' : null, r.sent.cover ? 'its tile background' : null, r.sent.media ? `${r.sent.media} picture${r.sent.media === 1 ? '' : 's'}/video${r.sent.media === 1 ? '' : 's'}` : null].filter(Boolean).join(' and ');
-      say(`✓ ${name} ${r.version} is waiting for review${extra ? `, with ${extra}` : ''}.${r.sent.problems.length ? ' ⚠️ ' + r.sent.problems.join(' · ') : ''}`);
-      notes.value = '';
-      after.replaceChildren(marketPageBtn(r.submission.id, '✏️ Dress up its market page'));
-    } catch (e) {
-      say('⚠️ ' + e.message); if (e.needsLink || /Connect/.test(e.message)) loadMarket();
-      if (e.code === 'pending') after.replaceChildren(marketPageBtn(null, '✏️ Open what is waiting on the market'));
-    }
-  };
-  return el('div', { class: 'market-box' },
-    el('div', { class: 'box-title', text: '🛒 GIRAFE Market' }),
-    el('div', { class: 'caps', text: 'Offer it to everyone: an admin reviews each version before it shows up on the market.' }),
-    info, el('div', { class: 'field' }, notes),
-    el('div', { class: 'row' }, el('button', { class: 'market-btn', text: S.market?.connected ? (kind === 'pack' ? '🛒 Submit the pack to the market' : '🛒 Submit to the market') : '🛒 Connect and submit', onclick: submit })),
-    out, after);
 }
 // Opens a submission's page editor on the market (or the submissions list).
 function marketPageBtn(subId, text) {
@@ -1135,6 +1105,7 @@ function openChain() {
         if (key === 'leave') { close(); return openLeave(); }
         if (key === 'github') { close(); return openGitHub(); }
         if (key === 'market') { close(); return openMarket(); }
+        if (key.startsWith('ship:')) { close(); return openShip(key.slice(5)); }
         return undefined;
       },
       toggle: async (key, on) => {

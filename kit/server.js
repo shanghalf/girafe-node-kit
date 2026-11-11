@@ -20,6 +20,7 @@ const compat = require('./compat');
 const updater = require('./updater');
 const settings = require('./settings');
 const install = require('./install');
+const ship = require('./ship');
 const nodeRuns = require('./node-runs');
 const github = require('./github');
 const home = require('./home');
@@ -148,6 +149,33 @@ async function handle(req, res) {
     try { return send(res, 200, await updater.start()); }
     catch (e) { return send(res, e.code === 'cannot-update' ? 409 : 502, { error: e.message, code: e.code || null }); }
   }
+  // Ship (kit/ship.js): where this node or pack stands in the four places it lives, and the one
+  // button that puts it in all of them. GET asks (nothing is written), POST ships.
+  if (req.method === 'GET' && (k = m(/^\/api\/ship\/([A-Za-z0-9_-]{1,64})$/))) {
+    try {
+      const h = ship.here(k[1]);
+      const mx = ship.matrix(h, {
+        github: await github.status().catch(() => null),
+        girafe: await link.plugins().catch(() => null),
+        market: await market.submissions().catch(() => null),
+      });
+      return send(res, 200, { here: { id: h.id, kind: h.kind, name: h.name, version: h.version, members: h.members.map((x) => ({ id: x.id, version: x.version })) },
+        matrix: mx, plan: ship.plan(h, mx, 'none') });
+    } catch (e) { return send(res, e.status || 502, { error: e.message }); }
+  }
+  if (req.method === 'POST' && p === '/api/ship') {
+    const b = await readJson(req).catch(() => ({}));
+    try {
+      const r = await ship.ship(String(b.id || ''), {
+        bump: ['none', 'patch', 'minor', 'major'].includes(b.bump) ? b.bump : 'patch',
+        notes: String(b.notes || ''),
+        targets: Array.isArray(b.targets) ? b.targets.filter((x) => ['github', 'girafe', 'market'].includes(x)) : ['github', 'girafe', 'market'],
+        deps: { github, girafeLink: link, marketLink: market, girafePlugins: () => link.plugins(), marketSubmissions: () => market.submissions() },
+      });
+      return send(res, 200, r);
+    } catch (e) { return send(res, e.status || 502, { error: e.message }); }
+  }
+
   // The kit's own settings: start with the computer, update by itself (kit/settings.js). The
   // chain panel's row 1 and row 2 read and write them.
   if (p === '/api/kit-settings') {
