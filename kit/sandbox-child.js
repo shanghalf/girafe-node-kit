@@ -1,21 +1,50 @@
 // Runs inside the sandboxed child process: loads the plugin and gives it ctx.
 // Everything ctx can do goes to the host over IPC; nothing else is reachable.
-// No way to the network but ctx.http: the network modules, the builtin-module getter and the
-// global fetch are taken away before the plugin's code loads. (Node's permission flags already
-// refuse native bindings, add-ons, processes, threads and disk writes.)
+// No way to the network but ctx.http: the network modules (require and import()), the
+// builtin-module getter and the global fetch are taken away before the plugin's code loads, and
+// the network functions themselves are made unusable. eval / new Function are off for the whole
+// process (--disallow-code-generation-from-strings). (Node's permission flags already refuse
+// native bindings, add-ons, processes, threads and disk writes.)
 const Module = require('module');
-const BLOCKED = new Set(['http', 'https', 'http2', 'net', 'tls', 'dgram', 'dns', 'child_process', 'cluster', 'worker_threads', 'inspector', 'undici', 'module', 'vm', 'v8', 'repl']);
+const BLOCKED = new Set(['http', 'https', 'http2', 'net', 'tls', 'dgram', 'dns', 'dns/promises', 'child_process', 'cluster', 'worker_threads', 'inspector', 'inspector/promises', 'undici', 'module', 'vm', 'v8', 'repl', 'wasi', 'trace_events']);
+const NO_NET = `is not available to nodes. Use ctx.http, declared in the manifest's "network".`;
 const realLoad = Module._load;
+const blocked = (request) => BLOCKED.has(String(request).replace(/^node:/, ''));
 const guardedLoad = function (request, ...rest) {
-  if (BLOCKED.has(String(request).replace(/^node:/, ''))) throw new Error(`"${request}" is not available to nodes. Use ctx.http, declared in the manifest's "network".`);
+  if (blocked(request)) throw new Error(`"${request}" ${NO_NET}`);
   return realLoad.call(this, request, ...rest);
 };
+// The network itself is made unusable, whichever way a module is reached (require, import(), a
+// module that loaded it earlier): the methods every connection goes through throw. Same steps as
+// GIRAFE's server/sandbox-lock.js.
+const neuterNetwork = () => {
+  const refuse = (what) => function refused() { throw new Error(`${what} ${NO_NET}`); };
+  const lock = (obj, key, what) => { try { Object.defineProperty(obj, key, { value: refuse(what), writable: false, configurable: false }); } catch {} };
+  const lockAll = (obj, what) => { for (const k of Object.getOwnPropertyNames(obj)) { try { if (typeof obj[k] === 'function' && k !== 'constructor') lock(obj, k, what); } catch {} } };
+  const net = realLoad('net');
+  lock(net.Socket.prototype, 'connect', 'The network'); lock(net.Server.prototype, 'listen', 'The network');
+  for (const k of ['connect', 'createConnection', 'createServer']) lock(net, k, 'The network');
+  const dgram = realLoad('dgram');
+  for (const k of ['bind', 'connect', 'send']) lock(dgram.Socket.prototype, k, 'The network');
+  lock(dgram, 'createSocket', 'The network');
+  const dns = realLoad('dns');
+  lockAll(dns, 'DNS'); lockAll(dns.promises, 'DNS');
+  for (const R of [dns.Resolver, dns.promises.Resolver]) if (R && R.prototype) lockAll(R.prototype, 'DNS');
+  Module.syncBuiltinESMExports(); // import() sees the locked functions too
+};
 const lockModules = () => {
+  neuterNetwork();
   Object.defineProperty(Module, '_load', { value: guardedLoad, writable: false, configurable: false });
   if (process.getBuiltinModule) Object.defineProperty(process, 'getBuiltinModule', { value: (id) => guardedLoad(id), writable: false, configurable: false });
+  // import('node:net') does not go through Module._load: refuse it where Node lets us hook it
+  // (22.15+); on older Node the locked functions above are what stops it.
+  if (typeof Module.registerHooks === 'function') {
+    try { Module.registerHooks({ resolve(specifier, context, next) { if (blocked(specifier)) throw new Error(`"${specifier}" ${NO_NET}`); return next(specifier, context); } }); } catch {}
+  }
   for (const g of ['fetch', 'WebSocket', 'EventSource', 'XMLHttpRequest']) {
     try { Object.defineProperty(globalThis, g, { value: undefined, writable: false, configurable: false }); } catch {}
   }
+  try { delete process.mainModule; } catch {}
 };
 
 let seq = 0;

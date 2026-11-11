@@ -3,6 +3,22 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.10.1 (2026-11-11)
+
+Security fixes for the sandbox plugin nodes run in (same changes on GIRAFE's server).
+
+- **`import()` no longer gets around the network block.** `require('net')` was refused but
+  `await import('node:net')` was not: a node could reach the network, and the kit's own local
+  page, without `ctx.http`. Now the network functions themselves are unusable inside a node
+  (connections, servers, UDP, DNS), however the module is reached, and `import()` of a blocked
+  module is refused where Node allows hooking it (22.15+).
+- **No `eval` / `new Function` in a node** (`--disallow-code-generation-from-strings`).
+  **For plugin authors:** if your node used them, write the code out instead.
+- **Limits on what a node sends back:** one value 5 MB at most (send big results as files with
+  `ctx.files.write`), 40 MB per firing. On Linux a node using more than 768 MB of real memory
+  (Buffers included) is stopped.
+- Host calls are only the real ones (a made-up call name no longer reaches an inherited method).
+
 ## 0.10.0 (2026-11-10)
 
 - **The kit asks you to sign in with your GIRAFE account** before it does anything. One Allow on

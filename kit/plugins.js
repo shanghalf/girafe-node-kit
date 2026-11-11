@@ -142,6 +142,14 @@ function listPlugins() {
   return out;
 }
 
+// Same limits as GIRAFE (server/plugins/runtime.js).
+const RSS_MAX_MB = Math.max(256, Number(process.env.PLUGIN_RSS_MB) || 768);
+const PACKET_MAX_CHARS = 5 * 1024 * 1024;
+const OUTPUT_MAX_CHARS = 40 * 1024 * 1024;
+function rssMb(pid) {
+  try { const m = /VmRSS:\s+(\d+) kB/.exec(fs.readFileSync(`/proc/${pid}/status`, 'utf8')); return m ? Number(m[1]) / 1024 : 0; } catch { return 0; }
+}
+
 function getPlugin(id) {
   return listPlugins().find((p) => p.id === id) || null;
 }
@@ -156,6 +164,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
     const child = fork(CHILD, [], {
       execArgv: [
         `--max-old-space-size=${MEMORY_MB}`,
+        '--disallow-code-generation-from-strings', // no eval / new Function in a node
         '--permission', `--allow-fs-read=${dir}`, `--allow-fs-read=${CHILD}`,
       ],
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
@@ -167,12 +176,16 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
     let done = false;
     const finish = (err, val) => {
       if (done) return; done = true;
-      clearTimeout(timer); signal && signal.removeEventListener('abort', onAbort);
+      clearTimeout(timer); clearInterval(memWatch); signal && signal.removeEventListener('abort', onAbort);
       try { child.kill('SIGKILL'); } catch {}
       err ? reject(err) : resolve(val);
     };
     const limitMs = plugin.hostApi >= 2 && plugin.limits && plugin.limits.seconds ? plugin.limits.seconds * 1000 : TIMEOUT_MS;
     const timer = setTimeout(() => finish(new Error(`${plugin.name} took longer than ${limitMs / 1000} s and was stopped`)), limitMs);
+    // --max-old-space-size does not count Buffers: on Linux the process's real memory is watched too.
+    const memWatch = setInterval(() => {
+      if (child.pid && rssMb(child.pid) > RSS_MAX_MB) finish(new Error(`${plugin.name} used more than ${RSS_MAX_MB} MB of memory and was stopped`));
+    }, 500);
     const onAbort = () => finish(new Error('Stopped'));
     signal && signal.addEventListener('abort', onAbort);
     const keepLog = (s) => { if (logs.length < 200) logs.push(String(s).slice(0, 2000)); };
@@ -181,12 +194,16 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
 
     // The host side of the host API. Every capability a plugin uses comes through here.
     let usageCount = 0;
+    let sentChars = 0;
     const host = {
       emit({ port, value }) {
         if (!plugin.outputs.length) throw new Error('this node has no outputs ("outputs": []): return what it should show instead');
         if (!plugin.outputs.includes(port)) throw new Error(`no output called "${port}" (the manifest lists ${plugin.outputs.join(', ')})`);
         if (outputs.length >= 1000) throw new Error('more than 1000 packets from one firing');
-        outputs.push({ port, value: toWire(value) });
+        const wire = toWire(value);
+        if (wire.length > PACKET_MAX_CHARS) throw new Error('one value over 5 MB: send big results as files (ctx.files.write)');
+        if ((sentChars += wire.length) > OUTPUT_MAX_CHARS) throw new Error('more than 40 MB sent on from one firing');
+        outputs.push({ port, value: wire });
       },
       progress({ text }) { onProgress && onProgress(String(text).slice(0, 200)); },
       log({ text }) { keepLog(text); },
@@ -323,7 +340,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
       if (!msg || typeof msg !== 'object') return;
       if (msg.t === 'call') {
         Promise.resolve().then(() => {
-          if (!host[msg.name]) throw new Error('unknown host call ' + msg.name);
+          if (typeof msg.name !== 'string' || !Object.prototype.hasOwnProperty.call(host, msg.name)) throw new Error('unknown host call ' + msg.name);
           return host[msg.name](msg.args || {});
         }).then((value) => ({ t: 'reply', id: msg.id, ok: true, value }), (e) => ({ t: 'reply', id: msg.id, ok: false, error: e.message }))
           .then((reply) => { if (!done) child.send(reply); });

@@ -231,3 +231,12 @@ A full example using a key slot: `workspace/nodes/gemini-image/`.
 A file reference can carry extra fields: they travel with it. A 3D model is a reference with a
 `model/…` mime (`model/gltf-binary` for GLB) and, by convention, `preview`: the reference of a
 picture of it, which GIRAFE and the kit show in place of the model.
+
+## Sandbox limits (kit 0.10.1, GIRAFE 0.90.5)
+
+- No `eval` and no `new Function` in a node: the process runs with code generation from strings off.
+- No network module by any route (`require`, `import()`, `process.getBuiltinModule`): `ctx.http`
+  and `ctx.files.fromUrl` are the only ways out, to the hosts the manifest declares.
+- One value sent on (`ctx.emit` or a returned value) is 5 MB at most, 40 MB per firing. Send big
+  results as files (`ctx.files.write`, 25 MB each, or `ctx.files.fromUrl`).
+- Real memory, Buffers included, is watched on Linux: a node past 768 MB is stopped.
