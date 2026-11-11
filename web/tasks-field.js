@@ -23,7 +23,8 @@ export function mergeTasks(f, old, fresh) {
 }
 const when = (iso) => { const d = iso ? new Date(iso) : null; return d && Number.isFinite(d.getTime()) ? d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?'; };
 
-export function tasksField({ el, api, f, pluginId, service, keyId, value, set, rerender }) {
+export function tasksField({ el, api, f, pluginId, service: svc, keyId, value, set, rerender }) {
+  const service = String(svc || '').charAt(0).toUpperCase() + String(svc || '').slice(1);
   const v = value && typeof value === 'object' ? value : {};
   const items = Array.isArray(v.items) ? v.items : [];
   const ids = Array.isArray(v.ids) ? v.ids : [];
