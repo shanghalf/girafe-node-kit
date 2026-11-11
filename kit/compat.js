@@ -132,6 +132,14 @@ async function gitLatest(branch) {
   return JSON.parse(await runGit(['show', 'FETCH_HEAD:package.json'], 10_000));
 }
 
+// The last thing GIRAFE said about itself, with no network call - what every local check should
+// measure against instead of version.js's frozen numbers. null until GIRAFE has answered once.
+function known() {
+  const f = readFile();
+  const g = f.girafe;
+  return g && g.base === girafeBase() && isVer(g.girafeVersion) ? g : null;
+}
+
 // What GIRAFE would say about one node, from its manifest. null when it can be sent.
 function checkNode(manifest, g) {
   if (!g || !g.hostApis) return null; // unknown (offline, old GIRAFE): GIRAFE itself will check
@@ -201,9 +209,58 @@ async function beforeSendPack(manifests, pack) {
   return null;
 }
 
+// ONE BUTTON. Everything that can drift apart - what GIRAFE really runs, what this kit assumed,
+// which kit is newest, whether each node still passes, what version GIRAFE already holds - is
+// settled here in one go, and what is left is said in plain words.
+//
+// It only ever changes the kit's own picture of GIRAFE (and, with `id`, that node's version
+// number on the way out). It never edits anyone's manifest to make a check pass: a node that
+// really needs a newer GIRAFE must wait for one, and saying otherwise would be a lie.
+async function align({ id = null, send = false } = {}) {
+  const plugins = require('./plugins');
+  const g = await girafe({ force: true });
+  const k = g.hostApis ? g : g.last || null;
+  const l = await latest({ force: true, repo: k?.kit?.repo, branch: k?.kit?.branch });
+  const kitOld = !!(k && cmp(version.KIT_VERSION, k.minKit) < 0);
+  const newer = !!(l.version && cmp(l.version, version.KIT_VERSION) > 0);
+
+  const nodes = [];
+  const all = plugins.listPlugins();
+  // "the latest modified node" when the caller named none: the one the author was just editing.
+  let pick = id;
+  if (!pick && send) pick = all.slice().sort((a, b) => String(b.changedAt || '').localeCompare(String(a.changedAt || '')))[0]?.id || null;
+  for (const p of all) {
+    const manifest = p.manifest || { id: p.id, name: p.name, version: p.version, hostApi: p.hostApi, girafe: p.girafe, fields: p.fields, capabilities: p.capabilities, billing: p.billing };
+    const why = k ? checkNode(manifest, k) : null;
+    nodes.push({ id: p.id, name: p.name, version: p.version, problems: p.problems || [], warnings: p.warnings || [], blocked: why ? why.text : null });
+  }
+
+  const steps = [];
+  if (g.error) steps.push({ level: 'warn', text: `${g.error}. ${k ? `The kit is checking against what GIRAFE last said: ${k.girafeVersion}.` : 'Nothing could be checked against your GIRAFE.'}` });
+  else if (g.old) steps.push({ level: 'info', text: `${new URL(g.base).host} is too old to say its version; GIRAFE itself checks each node you send.` });
+  else if (k) steps.push({ level: 'ok', text: `GIRAFE (${new URL(g.base).host}) is ${k.girafeVersion}, host API ${k.hostApis.join(' and ')}. This kit now checks your nodes against that, not against the ${version.GIRAFE_VERSION} it ships with.` });
+  if (kitOld) steps.push({ level: 'block', text: `GIRAFE needs kit ${k.minKit} or newer and this is ${version.KIT_VERSION}: update the kit before sending.` });
+  else if (newer) steps.push({ level: 'info', text: `Kit ${l.version} is out (you have ${version.KIT_VERSION}). Your nodes work either way; the update brings whatever GIRAFE added since.` });
+  const stuck = nodes.filter((n) => n.blocked || n.problems.length);
+  if (stuck.length) for (const n of stuck) steps.push({ level: 'block', text: `${n.name}: ${n.blocked || n.problems[0]}` });
+  else steps.push({ level: 'ok', text: nodes.length ? `All ${nodes.length} node${nodes.length > 1 ? 's' : ''} can be sent.` : 'No nodes yet.' });
+
+  let sent = null;
+  if (pick && send) {
+    if (kitOld) steps.push({ level: 'block', text: `"${pick}" was not sent: update the kit first.` });
+    else {
+      try {
+        sent = await require('./girafe-link').send(pick);
+        steps.push({ level: 'ok', text: `Sent "${pick}" ${sent.version}${sent.raisedTo ? ` (version raised to ${sent.raisedTo}: GIRAFE already had the one before)` : ''}.` });
+      } catch (e) { steps.push({ level: 'block', text: `"${pick}" was not sent: ${e.message}` }); }
+    }
+  }
+  return { picked: pick, girafe: k ? { base: g.base, version: k.girafeVersion, hostApi: k.hostApi, hostApis: k.hostApis, minKit: k.minKit } : { base: g.base, version: null }, kit: { version: version.KIT_VERSION, simulates: version.GIRAFE_VERSION, hostApi: version.HOST_API }, latest: l.version || null, updateAvailable: newer, kitOld, nodes, steps, sent, at: new Date().toISOString() };
+}
+
 // After GIRAFE refused with 426/409, keep its answer so the page shows it at once.
 function remember(compat) {
   if (compat && isVer(compat.girafeVersion)) save({ girafe: { base: girafeBase(), at: Date.now(), girafeVersion: compat.girafeVersion, hostApi: Number(compat.hostApi), hostApis: (compat.hostApis || []).map(Number), minKit: compat.minKit, keyServices: compat.keyServices || null, packs: Number(compat.packs) || 0, billing: Number(compat.billing) || 0, tasks: Number(compat.tasks) || 0, kit: compat.kit || null } });
 }
 
-module.exports = { status, girafe, latest, checkNode, beforeSend, beforeSendPack, remember, updateSource, cmp, nodeOk, isVer, _reset: () => { mem = null; } };
+module.exports = { status, girafe, known, align, latest, checkNode, beforeSend, beforeSendPack, remember, updateSource, cmp, nodeOk, isVer, _reset: () => { mem = null; } };

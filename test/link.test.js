@@ -28,7 +28,7 @@ const fake = http.createServer((req, res) => {
       let v; try { v = pkgs.verify(j); } catch (e) { return send(400, { error: e.message }); }
       const had = installed[v.id];
       if (had && had.authorKey !== v.authorKey) return send(403, { error: 'signed by another author' });
-      if (had && !(require('../kit/plugins').cmpVersion(v.version, had.version) > 0)) return send(409, { error: `${v.id} ${had.version} is already in your account; raise the version.` });
+      if (had && !(require('../kit/plugins').cmpVersion(v.version, had.version) > 0)) return send(409, { code: 'version-not-higher', installed: had.version, error: `${v.id} ${had.version} is already in your account; raise "version" in manifest.json (higher than ${had.version}).` });
       installed[v.id] = { version: v.version, authorKey: v.authorKey };
       return send(200, { ok: true, status: had ? 'updated' : 'installed', message: `${v.manifest.name} ${v.version} ${had ? 'updated' : 'installed'} in your account.` });
     }
@@ -74,20 +74,24 @@ test('connect: device link, token kept in the key bank, never shown', async () =
   assert.ok(!fs.readFileSync(path.join(WS, '.kit', 'keys.json'), 'utf8').includes(TOKEN));
 });
 
-test('send: new node, then the same version refused, then a raised version updates', async () => {
+test('send: new node, then sending again raises the version by itself', async () => {
   seen.length = 0;
+  const mf = path.join(WS, 'nodes', 'gemini-image', 'manifest.json');
   const r = await link.send('gemini-image');
   assert.equal(r.status, 'installed');
   const up = seen.find((x) => x.url === '/api/kit/packages');
   assert.equal(up.auth, `Bearer ${TOKEN}`);
   assert.ok(!up.body.includes(TOKEN), 'the token is only in the header');
-  await assert.rejects(link.send('gemini-image'), /already in your account; raise the version/);
-  const mf = path.join(WS, 'nodes', 'gemini-image', 'manifest.json');
-  const m = JSON.parse(fs.readFileSync(mf, 'utf8')); m.version = BUMPED; fs.writeFileSync(mf, JSON.stringify(m));
+  // Sending the same version again: GIRAFE refuses it once, the kit raises the number in
+  // manifest.json and sends again, so editing a node never means editing its version by hand.
   const r2 = await link.send('gemini-image');
   assert.equal(r2.status, 'updated');
+  assert.equal(r2.raisedTo, BUMPED);
+  assert.equal(JSON.parse(fs.readFileSync(mf, 'utf8')).version, BUMPED);
   const log = require('../kit/netguard').report().log.find((e) => e.purpose.includes(`Send "gemini-image" ${BUMPED}`));
   assert.equal(log.key, 'GIRAFE link');
+  // The author's own formatting and comments survive the rewrite: only the number changed.
+  assert.ok(/"version":\s*"/.test(fs.readFileSync(mf, 'utf8')));
 });
 
 test('a revoked link disconnects cleanly; a denied one links nothing', async () => {

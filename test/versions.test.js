@@ -15,12 +15,15 @@ const KIT = path.join(__dirname, '..');
 let girafeAnswer = { status: 200, body: { girafeVersion: '0.68.3', hostApi: 1, hostApis: [0, 1], minKit: '0.4.0', keyServices: ['anthropic', 'openai', 'gemini'], kit: { repo: 'x/y', branch: 'release' } } };
 const seen = [];
 let release = null; // { version, zip }
+let packagesAnswer = () => ({ status: 200, body: { ok: true } });
 const fake = http.createServer((req, res) => {
   const chunks = []; req.on('data', (c) => chunks.push(c)); req.on('end', () => {
     seen.push({ url: req.url, method: req.method, kitVersion: req.headers['x-girafe-kit-version'] || null });
     const json = (s, d) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(d)); };
     if (req.url === '/api/kit/compat') return girafeAnswer.status === 200 ? json(200, girafeAnswer.body) : json(girafeAnswer.status, {});
-    if (req.url === '/api/kit/packages') return json(200, { ok: true });
+    if (req.url === '/api/kit/link/start') return json(200, { deviceCode: 'dc', userCode: 'AAAA-BBBB', verifyUrl: `http://127.0.0.1:${fake.address().port}/?link=AAAA-BBBB`, expiresIn: 600, interval: 2 });
+    if (req.url === '/api/kit/link/poll') return json(200, { status: 'approved', token: 'gk_test', account: { name: 'Alf' } });
+    if (req.url === '/api/kit/packages') { const a = packagesAnswer(Buffer.concat(chunks).toString()); return json(a.status, a.body); }
     if (req.url === '/rel/package.json') return release ? json(200, { name: 'girafe-node-kit', version: release.version, engines: { node: '>=22' } }) : json(404, {});
     if (req.url === '/rel/kit.zip') { if (!release) return json(404, {}); res.writeHead(200, { 'content-type': 'application/zip', 'content-length': release.zip.length }); return res.end(release.zip); }
     json(404, {});
@@ -197,4 +200,61 @@ test('git clone: pull --ff-only, and rollback goes back to the previous commit',
     assert.equal((await updater.start({ root: work })).to, '9.1.0', 'can pull again after a rollback');
     updater.confirm();
   } finally { fs.rmSync(T, { recursive: true, force: true }); }
+});
+
+// ---------- Align with GIRAFE (0.13.0): the kit never checks against its own frozen guess ----------
+
+test('local checks follow the live GIRAFE, not version.js, and unknown things only warn', async () => {
+  girafeAnswer.body = { girafeVersion: '0.73.0', hostApi: 2, hostApis: [1, 2], minKit: '0.4.0', keyServices: ['gemini'], packs: 1, billing: 1, kit: { repo: 'x/y', branch: 'release' } };
+  compat._reset();
+  await compat.status({ force: true });
+  const plugins = require('../kit/plugins');
+  assert.equal(plugins.rules().girafeVersion, '0.73.0', 'what GIRAFE said, not version.js');
+  assert.ok(plugins.rules().live);
+
+  // A node asking for a GIRAFE newer than the live one: said, never blocked by the kit.
+  const far = plugins.checkManifestFull({ id: 'a', name: 'A', version: '1.0.0', hostApi: 2, girafe: '>=9.9.9', inputs: { min: 0, max: 1 }, outputs: ['out'] }, 'a');
+  assert.equal(far.problems.length, 0);
+  assert.ok(far.warnings.some((w) => /9\.9\.9/.test(w)));
+
+  // A field type this kit has never heard of: a warning, because GIRAFE may well know it.
+  const odd = plugins.checkManifestFull({ id: 'b', name: 'B', version: '1.0.0', hostApi: 2, inputs: { min: 0, max: 1 }, outputs: ['out'], fields: [{ key: 'x', type: 'brandnew', label: 'X' }] }, 'b');
+  assert.equal(odd.problems.length, 0);
+  assert.ok(odd.warnings.some((w) => /brandnew/.test(w)));
+
+  // Real mistakes still block.
+  assert.ok(plugins.checkManifestFull({ id: 'c', name: 'C', version: 'x', hostApi: 2, inputs: { min: 0, max: 1 }, outputs: ['out'] }, 'c').problems.length);
+});
+
+test('align() reports one picture and raises a node version GIRAFE already holds', async () => {
+  const plugins = require('../kit/plugins');
+  const dir = path.join(WS, 'nodes', 'align-demo');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ id: 'align-demo', name: 'Align demo', version: '1.0.0', hostApi: 2, inputs: { min: 0, max: 1 }, outputs: ['out'] }, null, 2));
+  fs.writeFileSync(path.join(dir, 'node.js'), 'module.exports = { async run() { return { value: "x" }; } };\n');
+
+  assert.ok(plugins.getPlugin('align-demo').changedAt, 'the kit knows when a node was last touched');
+
+  release = { version: require('../kit/version').KIT_VERSION, zip: Buffer.alloc(0) };
+  const r = await compat.align({});
+  assert.equal(r.girafe.version, '0.73.0');
+  assert.equal(r.kitOld, false);
+  assert.ok(r.nodes.some((n) => n.id === 'align-demo'));
+  assert.ok(r.steps.some((s) => s.level === 'ok' && /host API/.test(s.text)));
+
+  // GIRAFE refuses the version it already has, once; the kit raises it and sends again.
+  let asked = 0;
+  packagesAnswer = (body) => (++asked === 1
+    ? { status: 409, body: { code: 'version-not-higher', installed: '1.0.0', error: 'align-demo 1.0.0 is already in your account' } }
+    : { status: 200, body: { ok: true, version: JSON.parse(body || '{}').manifest?.version } });
+  try {
+    await link.connect();
+    for (let i = 0; i < 40 && !link.status().connected; i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(link.status().connected, 'linked to the fake GIRAFE');
+    const sentRun = await compat.align({ send: true });
+    assert.equal(sentRun.picked, 'align-demo', 'the node touched last');
+    assert.equal(asked, 2, 'refused once, sent again');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).version, '1.0.1');
+    assert.ok(sentRun.steps.some((s2) => /version raised to 1\.0\.1/.test(s2.text)));
+  } finally { packagesAnswer = () => ({ status: 200, body: { ok: true } }); fs.rmSync(dir, { recursive: true, force: true }); }
 });

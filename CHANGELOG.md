@@ -3,6 +3,33 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.13.0 (2026-11-11)
+
+**One button: "Align with GIRAFE".** Versions used to drift apart on their own - the kit shipped
+with a guess about GIRAFE, GIRAFE moved on, and a node kept the version number it was last sent
+with - and the kit then refused things on GIRAFE's behalf, with nothing to do about it. Three
+changes, so editing a node stops costing you a version chase:
+
+- **The kit never checks against its own guess any more.** Once GIRAFE has answered
+  `/api/kit/compat` once, every local check measures against what GIRAFE really runs
+  (`kit/plugins.js` `rules()`, from `kit/compat.js` `known()`), not against `GIRAFE_VERSION` in
+  `kit/version.js`. An out-of-date kit no longer invents errors a newer GIRAFE wouldn't have.
+- **Only what the kit itself cannot do is an error; the rest is a warning.** A `hostApi` this kit
+  can't run still stops the node (nothing here could run it). But a `"girafe": ">=…"` newer than
+  yours, a field type, capability or key service the kit has never heard of, and a `hostApi` newer
+  than your GIRAFE are now shown under "Worth knowing" and the node still runs and can still be
+  sent - GIRAFE itself has the last word. You can build a node before the GIRAFE that will take it
+  exists.
+- **Sending raises the version for you.** GIRAFE accepts each version once; when it already holds
+  the one in your `manifest.json`, the kit raises the number (only the number - your formatting and
+  comments stay) and sends again, and says it did.
+
+**The button** sits in Settings, in "Versions and updates", and on a node whose send was refused:
+it asks GIRAFE what it runs, re-checks every node against that answer, tells you whether a newer
+kit is out, and can send the node you were last editing in the same go. Nothing in a manifest is
+ever rewritten to make a check pass: a node that truly needs a newer GIRAFE waits for one, and the
+dialog says so plainly.
+
 ## 0.12.0 (2026-11-11)
 
 **Tasks fields: pick tasks you already ran at a service.** A new field type, `tasks` (host API 2,

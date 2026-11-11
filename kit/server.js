@@ -98,6 +98,13 @@ async function handle(req, res) {
     try { return send(res, 200, { ...(await compat.status({ force: url.searchParams.get('force') === '1' })), update: { ...updater.info(), ...(await updater.method()) } }); }
     catch (e) { return send(res, e instanceof netguard.Blocked ? 403 : 502, { error: e.message }); }
   }
+  // "Align with GIRAFE": one button for the whole version web (kit/compat.js align()).
+  if (req.method === 'POST' && p === '/api/align') {
+    try {
+      const b = await readJson(req).catch(() => ({}));
+      return send(res, 200, await compat.align({ id: b.id ? String(b.id) : null, send: !!b.send }));
+    } catch (e) { return send(res, e instanceof netguard.Blocked ? 403 : 502, { error: e.message }); }
+  }
   if (req.method === 'POST' && p === '/api/update') {
     try { return send(res, 200, await updater.start()); }
     catch (e) { return send(res, e.code === 'cannot-update' ? 409 : 502, { error: e.message, code: e.code || null }); }

@@ -75,12 +75,19 @@ test('the sandbox: no reading outside its folder, no writing, no environment', a
   assert.ok(!/GIRAFE_KIT_WORKSPACE|PATH/.test(envy.nodes.p.outputs[0]), 'no host environment leaks');
 });
 
-test('manifest versions: wrong host API or too-new GIRAFE refuse to run', async () => {
+test('a host API the kit cannot run is a problem; a GIRAFE it cannot reach yet is only a warning', async () => {
   const list = plugins.listPlugins();
+  // The kit's own runtime: nothing here can run host API 9, so it refuses.
   assert.match(list.find((p) => p.id === 'old').problems.join(), /host API/);
-  assert.match(list.find((p) => p.id === 'future').problems.join(), /needs GIRAFE/);
   const rs = await run({ nodes: [{ id: 'p', type: 'plugin:old' }], wires: [] });
   assert.equal(rs.nodes.p.status, 'error');
+  // Needing a newer GIRAFE is GIRAFE's business, not the kit's: it is said, and the node still runs,
+  // so a node can be built and tried before the GIRAFE that will take it exists.
+  const future = list.find((p) => p.id === 'future');
+  assert.equal(future.problems.length, 0);
+  assert.match(future.warnings.join(), /needs GIRAFE/);
+  const ok = await run({ nodes: [{ id: 'p', type: 'plugin:future' }], wires: [] });
+  assert.notEqual(ok.nodes.p.status, 'error');
 });
 
 test('a failing node stops only its own branch', async () => {

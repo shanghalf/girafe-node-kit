@@ -520,6 +520,11 @@ function renderPanel() {
     field({ key: 'title', type: 'text', label: 'Title' }, n.title, (v) => { n.title = v; changed({ undoable: false, panel: false }); }),
   ];
   if (k.problems?.length) kids.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Can\'t run' }), el('ul', { class: 'problems' }, ...k.problems.map((x) => el('li', { text: x })))));
+  // Warnings never stop anything: the kit may simply be older than the GIRAFE you send to.
+  if (k.warnings?.length) kids.push(el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Worth knowing' }),
+    ...k.warnings.map((x) => el('div', { class: 'v-prob warn', text: x })),
+    el('div', { class: 'row' }, el('button', { text: '✨ Align with GIRAFE', onclick: () => openAlign() })),
+    el('div', { class: 'caps', text: 'The node still runs and can still be sent: GIRAFE itself has the last word on what it accepts.' })));
   // A plugin's key slots: you pick which of your keys fills each one; the plugin never sees it.
   // A node in a pack uses the pack's keys: one key for the whole pack.
   const pk = !k.core && k.pack && packOf(k.pack);
@@ -626,13 +631,13 @@ function packBox(k) {
     catch (e) {
       say('⚠️ ' + e.message); if (/Connect/.test(e.message)) loadLink();
       if (e.code) loadCompat(); // GIRAFE said something about versions: show it in the top bar too
-      if (e.code === 'kit-outdated') for (const n of document.querySelectorAll(`[data-pack="${k.id}"]`)) n.append(' ', el('button', { class: 'primary', text: '⬆ Update the kit', onclick: () => openVersions() }));
+      if (e.code) for (const n of document.querySelectorAll(`[data-pack="${k.id}"]`)) n.append(' ', el('button', { class: 'primary', text: '✨ Align with GIRAFE', onclick: () => openAlign(k.id) }));
     }
   };
   return el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Share this node' }),
     el('div', { class: 'row' }, el('button', { text: '📦 Pack', title: 'Make a signed .gnode file of this node', onclick: pack }),
       el('button', { class: 'primary', text: S.link?.connected ? '☁️ Send to my GIRAFE' : '☁️ Connect and send to my GIRAFE', onclick: sendIt })),
-    el('div', { class: 'caps', text: `Version ${k.version}. GIRAFE accepts each version once: raise "version" in manifest.json before sending a change.` }),
+    el('div', { class: 'caps', text: `Version ${k.version}. GIRAFE accepts each version once; if it already has this one, the kit raises the number in manifest.json for you and sends again.` }),
     S.compat?.girafe?.hostApis && !S.compat.girafe.hostApis.includes(k.hostApi) ? el('div', { class: 'v-prob warn', text: `Written for host API ${k.hostApi}; GIRAFE ${S.compat.girafe.version} runs host API ${S.compat.girafe.hostApis.join(' and ')}. It can't be sent until they match.` }) : null, out,
     marketBox(k.id, 'node', k.name, k.version));
 }
@@ -655,7 +660,7 @@ function packSendBox(pk) {
     catch (e) {
       say('⚠️ ' + e.message); if (/Connect/.test(e.message)) loadLink();
       if (e.code) loadCompat();
-      if (e.code === 'kit-outdated') for (const n of document.querySelectorAll(`[data-pack="${key}"]`)) n.append(' ', el('button', { class: 'primary', text: '⬆ Update the kit', onclick: () => openVersions() }));
+      if (e.code) for (const n of document.querySelectorAll(`[data-pack="${key}"]`)) n.append(' ', el('button', { class: 'primary', text: '✨ Align with GIRAFE', onclick: () => openAlign() }));
     }
   };
   return el('div', { class: 'box' }, el('div', { class: 'box-title', text: `Part of the pack "${pk.name}"` }),
@@ -1013,7 +1018,8 @@ function graphPanel() {
       el('div', { class: 'caps', text: `Simulated GIRAFE ${i.girafe} · host API ${i.hostApi} · kit ${i.kit}` }),
       el('div', { class: 'caps', text: S.compat?.girafe?.version ? `GIRAFE (${new URL(S.compat.girafe.base).host}) is ${S.compat.girafe.version} · runs host API ${S.compat.girafe.hostApis.join(', ')} · needs kit ${S.compat.girafe.minKit}+` : 'GIRAFE\'s own version: not known yet.' }),
       ...(S.compat?.problems || []).filter((x) => x.level !== 'info' || x.code === 'update-available').map((x) => el('div', { class: 'v-prob ' + x.level, text: x.text })),
-      el('div', { class: 'row' }, el('button', { text: '🔄 Versions and updates', onclick: () => openVersions() }))),
+      el('div', { class: 'row' }, el('button', { class: 'primary', text: '✨ Align with GIRAFE', onclick: () => openAlign() }),
+        el('button', { text: '🔄 Versions and updates', onclick: () => openVersions() }))),
     el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Start a node' }),
       el('div', { class: 'caps' }, 'Copy ', el('code', { text: 'workspace/nodes/example-upper' }), ' to a new folder, change its id in manifest.json, edit node.js. Read ', el('code', { text: 'HOST_API.md' }), '.')),
     el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Keys' }),
@@ -1116,6 +1122,7 @@ function openVersions() {
       !u.supervised ? el('div', { class: 'muted', text: 'Started without its watcher (--no-watch): after an update, close the kit and start it again yourself.' }) : null,
       note ? el('div', { class: note.bad ? 'problems' : 'muted', text: note.text }) : null,
       el('div', { class: 'row', style: { marginTop: '10px' } },
+        el('button', { class: 'primary', text: '✨ Align with GIRAFE', onclick: () => { close(); openAlign(); } }),
         el('button', { text: '🔄 Check again', onclick: async () => { draw({ text: 'Checking…' }); await loadCompat(true); draw(); } }),
         el('button', { class: 'primary', text: u.mode === 'git' ? '⬆ Update the kit (git pull)' : `⬆ Update the kit${c.latest && c.updateAvailable ? ' to ' + c.latest.version : ''}`, disabled: u.ready === false || u.busy || (u.mode !== 'git' && !c.updateAvailable), onclick: () => runUpdate(draw) })),
       el('div', { class: 'caps', text: 'Before replacing anything, the kit copies its current files to workspace/.kit/update/. If the new version does not start, it puts them back by itself. Your nodes, graphs, keys and files (workspace/) are never touched.' })];
@@ -1124,6 +1131,43 @@ function openVersions() {
   draw();
   loadCompat(true).then(() => draw());
 }
+// ONE BUTTON. The kit asks GIRAFE what it really runs, re-checks every node against that answer,
+// and (when asked) sends the node you were last editing - raising its version if GIRAFE has it
+// already. Nothing in a manifest is rewritten to make a check pass; what is really left is listed.
+S.align = null;
+function openAlign(id = null) {
+  let close = () => {};
+  const draw = (r, busy) => {
+    const node = r && r.nodes && (id || r.picked) ? r.nodes.find((n) => n.id === (id || r.picked)) : null;
+    const rows = r ? [['GIRAFE', r.girafe.version ? `${r.girafe.version} on ${new URL(r.girafe.base).host} · host API ${r.girafe.hostApis.join(', ')} · wants kit ${r.girafe.minKit}+` : `not reachable (${new URL(r.girafe.base).host})`],
+      ['This kit', `${r.kit.version} · host API ${r.kit.hostApi}${r.latest && r.updateAvailable ? ` · ${r.latest} is out` : ''}`],
+      ['Your nodes', r.nodes.length ? r.nodes.map((n) => `${n.name} ${n.version}`).join(' · ') : 'none yet']] : [];
+    const body = [
+      el('div', { class: 'caps', text: 'Versions drift apart on their own: the kit ships with a guess about GIRAFE, GIRAFE moves on, and a node keeps the version number it was sent with. This asks GIRAFE directly and settles all of it.' }),
+      busy ? el('div', { class: 'muted', text: busy }) : null,
+      r ? el('div', { class: 'v-table' }, ...rows.flatMap(([a, b]) => [el('span', { text: a }), el('span', { text: b })])) : null,
+      ...(r ? r.steps.map((x) => el('div', { class: 'v-prob ' + (['block', 'warn', 'ok'].includes(x.level) ? x.level : 'info'), text: (x.level === 'ok' ? '✓ ' : x.level === 'block' ? '⛔ ' : x.level === 'warn' ? '⚠️ ' : '') + x.text })) : []),
+      ...(node && node.warnings.length ? node.warnings.map((w) => el('div', { class: 'v-prob warn', text: '⚠️ ' + w })) : []),
+      el('div', { class: 'row', style: { marginTop: '10px' } },
+        el('button', { class: 'primary', text: '✨ Check and align', disabled: !!busy, onclick: () => run(false) }),
+        el('button', { text: node ? `☁️ Align and send "${node.name}"` : '☁️ Align and send the node I just changed', disabled: !!busy || (r && r.kitOld), onclick: () => run(true) }),
+        r && (r.kitOld || r.updateAvailable) ? el('button', { text: '⬆ Update the kit', onclick: () => { close(); openVersions(); } }) : null),
+      el('div', { class: 'caps', text: 'Sending never changes what your node does - only its version number, and only when GIRAFE already holds the one it has.' })].filter(Boolean);
+    close = dialog('✨ Align with GIRAFE', ...body);
+  };
+  const run = async (send) => {
+    draw(S.align, send ? 'Asking GIRAFE, checking your nodes, sending…' : 'Asking GIRAFE and checking your nodes…');
+    let err = null;
+    try { S.align = await api('/api/align', { method: 'POST', body: JSON.stringify({ id, send }) }); }
+    catch (e) { err = e; }
+    loadCompat(); loadKinds();
+    draw(S.align);
+    if (err) flash('⚠️ ' + err.message);
+  };
+  draw(S.align);
+  run(false);
+}
+
 async function runUpdate(draw) {
   const before = S.info.kit;
   draw({ text: 'Updating… (downloading and checking)' });

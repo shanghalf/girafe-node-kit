@@ -206,7 +206,7 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .v-table { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; margin: 6px 0 10px; }
 .v-table span:nth-child(odd) { color: var(--soft); }
 .v-prob { border-left: 3px solid var(--line); padding: 4px 8px; margin: 6px 0; font-size: 13px; }
-.v-prob.block { border-color: #ff7b7b; } .v-prob.warn { border-color: #f5b450; } .v-prob.info { border-color: #6fb3ff; }
+.v-prob.block { border-color: #ff7b7b; } .v-prob.warn { border-color: #f5b450; } .v-prob.info { border-color: #6fb3ff; } .v-prob.ok { border-color: #6ad48c; }
 .v-restart { text-align: center; padding: 18px 8px; }
 
 /* File fields and kept runs (host API 2) */

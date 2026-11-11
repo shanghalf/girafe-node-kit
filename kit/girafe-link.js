@@ -43,7 +43,8 @@ async function post(route, body, { token, purpose } = {}) {
   let data = {}; try { data = JSON.parse(text); } catch {}
   if (res.status === 404 && route.startsWith('/api/kit/')) throw Object.assign(new Error(`${new URL(base()).host} doesn't offer linking the kit yet. Everything else in the kit works without it.`), { status: 404 });
   if (data.compat) compat.remember(data.compat);
-  if (!res.ok) throw Object.assign(new Error(data.error || `GIRAFE answered HTTP ${res.status}`), { status: res.status, code: data.code || (res.status === 426 ? 'kit-outdated' : null) });
+  // `installed` rides along for the one refusal the kit can fix by itself (see send()).
+  if (!res.ok) throw Object.assign(new Error(data.error || `GIRAFE answered HTTP ${res.status}`), { status: res.status, code: data.code || (res.status === 426 ? 'kit-outdated' : null), installed: data.installed || null });
   return data;
 }
 
@@ -129,6 +130,22 @@ async function forget() {
   return status();
 }
 
+// Raise a node's "version" just above what GIRAFE already holds, in its manifest.json.
+// Vibe-coding a node means sending it again and again; making the author hand-edit a version
+// number on every send is friction with no purpose, so the kit does it.
+function raiseVersion(id, installed) {
+  const file = path.join(store.NODES, id, 'manifest.json');
+  const text = fs.readFileSync(file, 'utf8');
+  const m = JSON.parse(text);
+  const parts = String(installed || m.version || '0.0.0').split('.').map((n) => parseInt(n, 10) || 0);
+  const next = `${parts[0]}.${parts[1]}.${parts[2] + 1}`;
+  // Rewritten in place with a plain replace, so the author's own formatting and comments-by-key
+  // order survive: this file is theirs, the kit only touches the one number.
+  const re = /("version"\s*:\s*")(\d+\.\d+\.\d+)(")/;
+  fs.writeFileSync(file, re.test(text) ? text.replace(re, `$1${next}$3`) : JSON.stringify({ ...m, version: next }, null, 2));
+  return next;
+}
+
 // Pack the node and send it to the linked account: a new node, or a new version of it.
 async function send(id) {
   const s = read();
@@ -145,6 +162,14 @@ async function send(id) {
     return { ...r, version: packed.version, hash: packed.hash, size: packed.size };
   } catch (e) {
     if (e.status === 401) { keys.remove(s.keyId); try { fs.unlinkSync(FILE); } catch {} throw Object.assign(new Error('GIRAFE no longer accepts this computer\'s link (revoked or expired). Connect again.'), { needsLink: true }); }
+    // "that version is already in your account": raise it and send once more, rather than
+    // handing the author a chore. `installed` comes from GIRAFE; older ones only say it in words.
+    const held = e.installed || (e.status === 409 && /already in your account/.test(e.message) ? (/(\d+\.\d+\.\d+)/.exec(e.message) || [])[1] : null);
+    if (held && !send._again) {
+      const next = raiseVersion(id, held);
+      send._again = true;
+      try { const r = await send(id); return { ...r, raisedTo: next }; } finally { send._again = false; }
+    }
     throw e;
   }
 }
@@ -166,4 +191,4 @@ async function sendPack(packId) {
   }
 }
 
-module.exports = { status, connect, disconnect, send, sendPack, base, whoami, forget };
+module.exports = { status, connect, disconnect, send, sendPack, raiseVersion, base, whoami, forget };

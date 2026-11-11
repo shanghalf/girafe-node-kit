@@ -46,22 +46,51 @@ function cmpVersion(a, b) {
   return 0;
 }
 
-// ">=0.67.0" is the only range form for now: the oldest GIRAFE the node needs.
-function girafeOk(range) {
-  if (!range) return true;
-  const m = /^>=\s*(\d+\.\d+(?:\.\d+)?)$/.exec(String(range).trim());
-  return m ? cmpVersion(GIRAFE_VERSION, m[1]) >= 0 : false;
+// What the kit checks a manifest against. The numbers in version.js are only a FALLBACK, for a
+// kit that has never reached GIRAFE: whenever the real GIRAFE has answered /api/kit/compat, its
+// own version and host APIs are used instead. The kit must never be stricter than the GIRAFE it
+// is linked to - a frozen copy of GIRAFE's rules is what made a kit refuse nodes GIRAFE accepts.
+function rules() {
+  let live = null;
+  try { live = require('./compat').known(); } catch { /* compat not loaded (tests) */ }
+  return {
+    girafeVersion: (live && live.girafeVersion) || GIRAFE_VERSION,
+    hostApis: (live && live.hostApis && live.hostApis.length) ? live.hostApis : SUPPORTED_HOST_APIS,
+    live: !!(live && live.girafeVersion),
+  };
 }
 
-function checkManifest(m, dirName) {
+// ">=0.67.0" is the only range form for now: the oldest GIRAFE the node needs.
+function girafeOk(range, have) {
+  if (!range) return true;
+  const m = /^>=\s*(\d+\.\d+(?:\.\d+)?)$/.exec(String(range).trim());
+  return m ? cmpVersion(have || rules().girafeVersion, m[1]) >= 0 : false;
+}
+
+// problems = what no GIRAFE would accept (shape, names, contradictions): they block packing.
+// warnings = what only THIS kit doesn't know (a field type or capability a newer GIRAFE added):
+// they are shown, never blocking - the linked GIRAFE decides, and compat.checkNode asks it first.
+function checkManifest(m, dirName, opts) {
+  return checkManifestFull(m, dirName, opts).problems;
+}
+
+function checkManifestFull(m, dirName, opts = {}) {
+  const r = { ...rules(), ...opts };
+  const GIRAFE_NOW = r.girafeVersion;
+  const HOST_APIS = r.hostApis;
+  const warnings = [];
   const problems = [];
-  if (!m || typeof m !== 'object') return ['manifest.json is not a JSON object'];
+  if (!m || typeof m !== 'object') return { problems: ['manifest.json is not a JSON object'], warnings };
   if (m.id !== dirName) problems.push(`"id" must be "${dirName}" (the folder name)`);
   if (!store.ID_RE.test(String(m.id || ''))) problems.push('"id": lowercase letters, digits and dashes only');
   if (!m.name) problems.push('"name" is missing');
   if (!/^\d+\.\d+\.\d+$/.test(String(m.version || ''))) problems.push('"version" must look like 1.0.0');
-  if (!SUPPORTED_HOST_APIS.includes(m.hostApi)) problems.push(`"hostApi" is ${JSON.stringify(m.hostApi)}; this GIRAFE runs host API ${SUPPORTED_HOST_APIS.join(' and ')}`);
-  if (!girafeOk(m.girafe)) problems.push(`needs GIRAFE ${m.girafe}, this is ${GIRAFE_VERSION}`);
+  // Two different questions, and only the first is the kit's to answer:
+  //   can THIS KIT run the node? (its own runtime - a problem, nothing else can be done here)
+  //   will GIRAFE accept it? (GIRAFE's call - a warning, so a node can be built before GIRAFE catches up)
+  if (!SUPPORTED_HOST_APIS.includes(m.hostApi)) problems.push(`"hostApi" is ${JSON.stringify(m.hostApi)}; this kit runs host API ${SUPPORTED_HOST_APIS.join(' and ')}${Number.isInteger(m.hostApi) && m.hostApi > Math.max(...SUPPORTED_HOST_APIS) ? ' (update the kit to build for a newer one)' : ''}`);
+  else if (!HOST_APIS.includes(m.hostApi)) warnings.push(`"hostApi" is ${m.hostApi}; ${r.live ? `GIRAFE ${GIRAFE_NOW} runs host API ${HOST_APIS.join(' and ')} and will refuse it until it is updated` : `this kit knows host API ${HOST_APIS.join(' and ')} - press "Align with GIRAFE" to check against your real GIRAFE`}`);
+  if (!girafeOk(m.girafe, GIRAFE_NOW)) warnings.push(`needs GIRAFE ${m.girafe}, ${r.live ? `and yours is ${GIRAFE_NOW}` : `and this kit knows ${GIRAFE_NOW} (press "Align with GIRAFE" to check against your real one)`}`);
   if (m.category !== undefined && (typeof m.category !== 'string' || !m.category.trim() || m.category.length > 40)) problems.push('"category": a short name (40 characters at most)');
   const outs = m.outputs ?? ['out'];
   if (!Array.isArray(outs) || outs.some((o) => !/^[a-z][a-z0-9_]{0,23}$/.test(o))) problems.push('"outputs": a list of short lowercase names, like ["out"] or ["yes", "no"]');
@@ -73,7 +102,7 @@ function checkManifest(m, dirName) {
   else if (m.display === 'runs' && !(m.hostApi >= 2)) problems.push('"display": "runs" needs "hostApi": 2');
   for (const f of m.fields || []) {
     if (!f || !/^[a-zA-Z][a-zA-Z0-9_]{0,31}$/.test(f.key || '')) problems.push(`field ${JSON.stringify(f && f.key)}: bad key`);
-    else if (!FIELD_TYPES.has(f.type)) problems.push(`field "${f.key}": type must be one of ${[...FIELD_TYPES].join(', ')}`);
+    else if (!FIELD_TYPES.has(f.type)) warnings.push(`field "${f.key}": this kit doesn't know the type "${f.type}" (it knows ${[...FIELD_TYPES].join(', ')}). If your GIRAFE added it, update the kit; GIRAFE itself decides when the node is sent.`);
     else if (f.type === 'file' && !(m.hostApi >= 2)) problems.push(`field "${f.key}": file fields need "hostApi": 2`);
     else if (f.type === 'file' && f.accept !== undefined && (typeof f.accept !== 'string' || f.accept.length > 200)) problems.push(`field "${f.key}": "accept" is a short list like ".glb,.fbx" or "image/*"`);
     else if (f.type === 'select' && !Array.isArray(f.options)) problems.push(`field "${f.key}": a select needs "options"`);
@@ -87,7 +116,7 @@ function checkManifest(m, dirName) {
     }
   }
   const caps = m.capabilities || {};
-  for (const k of Object.keys(caps)) if (!['network', 'ai', 'keys', 'files', 'state'].includes(k)) problems.push(`capability "${k}" is unknown`);
+  for (const k of Object.keys(caps)) if (!['network', 'ai', 'keys', 'files', 'state'].includes(k)) warnings.push(`this kit doesn't know the capability "${k}". If your GIRAFE added it, update the kit; GIRAFE itself decides when the node is sent.`);
   if (caps.network !== undefined && (!Array.isArray(caps.network) || caps.network.some((h) => !/^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i.test(h)))) problems.push('"network": a list of host names, like ["api.example.com"] (host API 2 also takes "*.example.com")');
   else if ((caps.network || []).some((h) => h.startsWith('*.')) && m.hostApi < 2) problems.push('"*.host" entries in "network" need "hostApi": 2');
   if (caps.state !== undefined && caps.state !== true) problems.push('"state": true or leave it out');
@@ -101,14 +130,34 @@ function checkManifest(m, dirName) {
     if (!Array.isArray(caps.keys)) problems.push('"keys": a list like [{ "slot": "gemini", "service": "gemini", "label": "Gemini API key" }]');
     else for (const k of caps.keys) {
       if (!k || !/^[a-z][a-z0-9_]{0,23}$/.test(k.slot || '')) problems.push(`key slot ${JSON.stringify(k && k.slot)}: a short lowercase name`);
-      else if (!(m.hostApi >= 2 ? KEY_SERVICES : KEY_SERVICES_V1).includes(k.service)) problems.push(`key slot "${k.slot}": "service" must be one of ${(m.hostApi >= 2 ? KEY_SERVICES : KEY_SERVICES_V1).join(', ')}${KEY_SERVICES.includes(k.service) ? ' (this one needs "hostApi": 2)' : ''}`);
+      else if (!(m.hostApi >= 2 ? KEY_SERVICES : KEY_SERVICES_V1).includes(k.service)) {
+        if (KEY_SERVICES.includes(k.service)) problems.push(`key slot "${k.slot}": the ${k.service} service needs "hostApi": 2`);
+        else warnings.push(`key slot "${k.slot}": this kit doesn't know the service "${k.service}" (it knows ${KEY_SERVICES.join(', ')}). If your GIRAFE added it, update the kit.`);
+      }
       else if (m.hostApi < 1) problems.push(`key slots need "hostApi": 1`);
       else if (!netguard.hostsFor(k.service).slice(0, 1).every((h) => (caps.network || []).includes(h))) problems.push(`key slot "${k.slot}": add "${netguard.hostsFor(k.service)[0]}" to "network"`);
     }
   }
   if (m.billing !== undefined && !(m.hostApi >= 2)) problems.push('"billing" needs "hostApi": 2');
   else problems.push(...require('./billing').checkBilling(m.billing, (Array.isArray(caps.keys) ? caps.keys : []).map((k) => k && k.service), ''));
-  return problems;
+  return { problems, warnings };
+}
+
+// When this node was last touched, so the page can offer "the one you were just working on"
+// without the author having to remember its name. Its own files only, one level down.
+function newestMtime(base) {
+  let newest = 0;
+  const walk = (dir, depth) => {
+    let items; try { items = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const it of items) {
+      if (it.name.startsWith('.') || it.name === 'node_modules') continue;
+      const full = path.join(dir, it.name);
+      if (it.isDirectory()) { if (depth > 0) walk(full, depth - 1); continue; }
+      try { const t = fs.statSync(full).mtimeMs; if (t > newest) newest = t; } catch { /* vanished mid-read */ }
+    }
+  };
+  walk(base, 2);
+  return newest ? new Date(newest).toISOString() : null;
 }
 
 function listPlugins() {
@@ -119,10 +168,10 @@ function listPlugins() {
     if (!dir.isDirectory()) continue;
     if (packs.isPackDir(dir.name)) continue; // a pack folder holds only pack.json
     const base = path.join(store.NODES, dir.name);
-    let m = null, problems = [];
+    let m = null, problems = [], warnings = [];
     try { m = JSON.parse(fs.readFileSync(path.join(base, 'manifest.json'), 'utf8')); }
     catch (e) { problems = ['manifest.json: ' + e.message]; }
-    if (m) problems = checkManifest(m, dir.name);
+    if (m) ({ problems, warnings } = checkManifestFull(m, dir.name));
     if (!fs.existsSync(path.join(base, 'node.js'))) problems.push('node.js is missing');
     out.push({
       type: 'plugin:' + dir.name,
@@ -144,7 +193,9 @@ function listPlugins() {
       category: (m && m.category) || null,
       billing: (m && Array.isArray(m.billing) && m.billing) || [],
       pack: member[dir.name] || null,
+      changedAt: newestMtime(base),
       problems,
+      warnings,
     });
   }
   return out;
@@ -381,4 +432,4 @@ function toWire(v) {
   return JSON.stringify(v);
 }
 
-module.exports = { listPlugins, getPlugin, runPlugin, checkManifest, girafeOk, cmpVersion, toWire, hostAllowed, MAX_SECONDS };
+module.exports = { listPlugins, getPlugin, runPlugin, checkManifest, checkManifestFull, rules, girafeOk, cmpVersion, toWire, hostAllowed, MAX_SECONDS };
