@@ -76,7 +76,7 @@
 
 <h1>GIRAFE node kit</h1>
 <p class="lead">Technical documentation: how the kit is built, how it runs a graph, how plugin nodes are isolated, and how API keys are handled.</p>
-<p class="meta">Last updated 2026-11-11 (a plugin node's panel now has an "As in GIRAFE" tab with GIRAFE's own panel and 3D viewer; the page may run WebAssembly for that viewer). Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
+<p class="meta">Last updated 2026-11-11 (a pasted key loses a leading "Bearer "; before that, a plugin node's panel got an "As in GIRAFE" tab with GIRAFE's own panel and 3D viewer, and the page may run WebAssembly for that viewer). Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
 
 <h2 id="overview">1. Overview</h2>
 <p>The kit is a small, local copy of GIRAFE's Promptmixer canvas, used to build <strong>plugin nodes</strong>: nodes written by anyone, run in a sandbox, that talk to GIRAFE only through a fixed contract (the <em>host API</em>). It runs entirely on the user's computer: a Node.js server on <code>127.0.0.1</code> and a web page served by it.</p>
@@ -260,6 +260,7 @@ docs.html               this document</code></pre>
 <h2 id="keys">5. How keys are managed</h2>
 <p>The Prompt and Generate image nodes call outside services with the user's own API keys. The rule the code enforces:</p>
 <div class="note good"><strong>A key exists in plain text only twice:</strong> when it is pasted (from the page to the kit, on the same computer), and in the kit's memory for the duration of one call to <em>its own</em> service. It is never written in plain text, never listed, never logged, never given to a plugin, and never sent anywhere but its own service's address, in its login header.</div>
+<p>A key pasted with <code>Bearer </code> in front (copied from a code sample) is saved without that word: the kit adds it itself for the services that want it (OpenAI, Tripo). Tripo has two official addresses, <code>openapi.tripo3d.ai</code> and <code>openapi.tripo3d.com</code>; a Tripo key may go to either.</p>
 
 <h3 id="key-life">A key's life</h3>
 <svg viewBox="0 0 860 200" role="img" aria-label="Paste, encrypt and save, listed masked, decrypted for one call, checked by the guard, sent to its own service, logged.">

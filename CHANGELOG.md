@@ -3,6 +3,14 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.11.2 (2026-11-11)
+
+**A pasted key keeps working when it starts with "Bearer ".** A key copied from a code sample
+(`Bearer tsk_…`) used to be saved with that word, and the kit then sent `Bearer Bearer tsk_…`, which
+the service refused. The word is now dropped when the key is pasted (paste such a key again). Test
+runs can also point Tripo's second address, `openapi.tripo3d.com`, at a fake server
+(`KIT_TRIPO_COM_URL`). Same host API, same simulated GIRAFE.
+
 ## 0.11.1 (2026-11-11)
 
 **Telling a refused key from a wrong key.** When a service answers "no" to a key, the Network list

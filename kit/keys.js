@@ -66,7 +66,8 @@ function list() {
   return read().keys.map((k) => ({ id: k.id, label: k.label, service: k.service, masked: k.masked || '(saved)', fingerprint: k.fingerprint || null, createdAt: k.createdAt }));
 }
 function add({ label, service, value }) {
-  value = String(value || '').trim();
+  // A key copied from a code sample sometimes keeps "Bearer " in front; the kit adds it itself.
+  value = String(value || '').trim().replace(/^bearer\s+/i, '').trim();
   if (!value) throw new Error('The key is empty.');
   if (value.length > 500) throw new Error('That is too long to be an API key.');
   service = SERVICES[service] ? service : guessService(value);

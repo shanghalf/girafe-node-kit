@@ -21,9 +21,9 @@ const OFFICIAL = {
 };
 // Test runs point the services at a fake local server (KIT_*_URL); that address is allowed too.
 function hostsFor(service) {
-  const env = { anthropic: process.env.KIT_ANTHROPIC_URL, openai: process.env.KIT_OPENAI_URL, gemini: process.env.KIT_GEMINI_URL, girafe: process.env.KIT_GIRAFE_URL, market: process.env.KIT_MARKET_URL, github: process.env.KIT_GITHUB_URL, tripo: process.env.KIT_TRIPO_URL }[service];
+  const env = { anthropic: process.env.KIT_ANTHROPIC_URL, openai: process.env.KIT_OPENAI_URL, gemini: process.env.KIT_GEMINI_URL, girafe: process.env.KIT_GIRAFE_URL, market: process.env.KIT_MARKET_URL, github: process.env.KIT_GITHUB_URL, tripo: [process.env.KIT_TRIPO_URL, process.env.KIT_TRIPO_COM_URL] }[service];
   const extra = [];
-  if (env) { try { extra.push(new URL(env).host); } catch {} }
+  for (const e of [].concat(env || [])) { if (e) { try { extra.push(new URL(e).host); } catch {} } }
   return [...(OFFICIAL[service] || []), ...extra];
 }
 const AUTH_HEADER = { anthropic: 'x-api-key', openai: 'authorization', gemini: 'x-goog-api-key', girafe: 'authorization', market: 'authorization', github: 'authorization', tripo: 'authorization' };
@@ -72,7 +72,7 @@ async function send(url, init = {}, { service, key, keyLabel, purpose } = {}) {
 function observed(origin, path) {
   let u; try { u = new URL(path || '/', origin); } catch { return; }
   if (u.hostname === '127.0.0.1' || u.hostname === 'localhost' || u.hostname === '::1') {
-    if (!process.env.KIT_ANTHROPIC_URL && !process.env.KIT_OPENAI_URL && !process.env.KIT_GEMINI_URL && !process.env.KIT_GIRAFE_URL && !process.env.KIT_GITHUB_URL && !process.env.KIT_TRIPO_URL) return;
+    if (!process.env.KIT_ANTHROPIC_URL && !process.env.KIT_OPENAI_URL && !process.env.KIT_GEMINI_URL && !process.env.KIT_GIRAFE_URL && !process.env.KIT_GITHUB_URL && !process.env.KIT_TRIPO_URL && !process.env.KIT_TRIPO_COM_URL) return;
   }
   const s = sig(u);
   const left = approved.get(s) || 0;
