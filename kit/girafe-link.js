@@ -145,6 +145,16 @@ async function hello(report) {
   return data;
 }
 
+// Ask GIRAFE to vouch for this kit to GIRAFE Market: a short, signed note about the account, so
+// the person approves once instead of twice (kit/market-link.js). GIRAFE answers 503 when the two
+// sites share no secret; the caller then falls back to the market's own device flow.
+async function marketHandoff() {
+  const s = read();
+  if (!s?.keyId) throw Object.assign(new Error('Not signed in.'), { status: 401 });
+  const t = keys.use(s.keyId, 'girafe');
+  return post('/api/kit/market-handoff', {}, { token: t.value, purpose: 'Ask GIRAFE to vouch for this kit to the market' });
+}
+
 // Drop the link on this computer without asking GIRAFE (it already refused it).
 async function forget() {
   stopPolling(); pending = null;
@@ -215,4 +225,4 @@ async function sendPack(packId) {
   }
 }
 
-module.exports = { status, connect, disconnect, send, sendPack, raiseVersion, base, whoami, hello, forget };
+module.exports = { status, connect, disconnect, send, sendPack, raiseVersion, base, whoami, hello, marketHandoff, forget };

@@ -88,8 +88,9 @@ export function chainRows(S) {
     icon: '🛒',
     title: 'The market',
     tone: mk.connected ? 'ok' : 'off',
-    state: mk.connected ? `Publishing as ${mk.account?.name || mk.account?.email || 'you'}` : 'Not connected',
-    lines: mk.connected ? [] : ['Only needed to publish a node for other people. Your own nodes work in GIRAFE without it.'],
+    state: mk.connected ? `Publishing as ${mk.account?.name || mk.account?.email || 'you'}${mk.viaGirafe ? ' (through your GIRAFE account)' : ''}` : 'Not connected',
+    lines: mk.connected ? [] : ['Only needed to publish a node for other people. Your own nodes work in GIRAFE without it.',
+      ...(link.connected ? ['Signed in to GIRAFE, so there is nothing to approve again: it vouches for you.'] : [])],
     actions: [{ key: 'market', label: mk.connected ? '🛒 Open the market' : '🛒 Connect' }],
   });
 

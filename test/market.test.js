@@ -22,11 +22,18 @@ fs.writeFileSync(path.join(MK, 'listing.json'), JSON.stringify({ tagline: 'Pictu
 
 const TOKEN = 'mk_FAKE_MARKET_TOKEN_1234567890';
 const seen = [];
+let handoffWorks = false;   // a market (and a GIRAFE) that know about the hand-off
 const fake = http.createServer((req, res) => {
   const chunks = []; req.on('data', (c) => chunks.push(c)); req.on('end', () => {
     const b = Buffer.concat(chunks);
     seen.push({ url: req.url, auth: req.headers.authorization || null, type: req.headers['content-type'], size: b.length, body: b });
     const send = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+    if (req.url === '/api/kit/link/handoff') {
+      if (!handoffWorks) return send(404, { error: 'no such route' });
+      const p = JSON.parse(b);
+      if (p.handoff !== 'NOTE-FROM-GIRAFE') return send(401, { error: 'bad hand-off' });
+      return send(200, { token: TOKEN, account: { name: 'Alf', email: 'alf@example.com' } });
+    }
     if (req.url === '/api/kit/link/start') return send(200, { deviceCode: 'dev-m', userCode: 'MRKT-0001', verifyUrl: `http://${req.headers.host}/link?code=MRKT-0001`, interval: 2, expiresIn: 600 });
     if (req.url === '/api/kit/link/poll') return send(200, { status: 'approved', token: TOKEN, account: { name: 'Alf', email: 'alf@example.com' } });
     if (req.headers.authorization !== `Bearer ${TOKEN}`) return send(401, { error: 'not linked' });
@@ -93,4 +100,39 @@ test('connect, submit with media, list, disconnect', async () => {
 test('the network guard keeps the market token on the market', async () => {
   const netguard = require('../kit/netguard');
   await assert.rejects(netguard.send('https://example.com/x', { method: 'POST', headers: { authorization: `Bearer ${TOKEN}` } }, { service: 'market', key: TOKEN }), /network guard/);
+});
+
+// ---- connecting through the person's GIRAFE, with the device flow as the fallback ----
+test('with a GIRAFE that vouches, connecting is one call and nothing to approve', async () => {
+  const girafe = require('../kit/girafe-link');
+  const realStatus = girafe.status;
+  const realHandoff = girafe.marketHandoff;
+  await market.disconnect().catch(() => {});
+  try {
+    girafe.status = () => ({ connected: true, account: { name: 'Alf' } });
+    girafe.marketHandoff = async () => ({ handoff: 'NOTE-FROM-GIRAFE' });
+    handoffWorks = true;
+    const st = await market.connect();
+    assert.equal(st.connected, true, 'linked straight away');
+    assert.equal(st.viaGirafe, true);
+    assert.equal(st.account.email, 'alf@example.com');
+    assert.ok(!st.pending, 'no code to type anywhere');
+    assert.ok(seen.some((x) => x.url === '/api/kit/link/handoff'));
+    assert.ok(!seen.slice(-2).some((x) => x.url === '/api/kit/link/start'), 'the device flow was not needed');
+  } finally { girafe.status = realStatus; girafe.marketHandoff = realHandoff; }
+});
+
+test('a market or a GIRAFE that cannot hand over falls back to the device flow', async () => {
+  const girafe = require('../kit/girafe-link');
+  const realStatus = girafe.status;
+  const realHandoff = girafe.marketHandoff;
+  await market.disconnect().catch(() => {});
+  try {
+    girafe.status = () => ({ connected: true, account: { name: 'Alf' } });
+    girafe.marketHandoff = async () => { throw Object.assign(new Error('this GIRAFE and the market share no secret'), { status: 503 }); };
+    handoffWorks = true;
+    const st = await market.connect();
+    assert.equal(st.connected, false);
+    assert.equal(st.pending.userCode, 'MRKT-0001', 'the usual code to approve');
+  } finally { girafe.status = realStatus; girafe.marketHandoff = realHandoff; handoffWorks = false; await market.disconnect().catch(() => {}); }
 });

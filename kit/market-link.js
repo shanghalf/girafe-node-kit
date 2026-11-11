@@ -62,13 +62,37 @@ function status() {
     base: base(),
     connected: !!(s && s.keyId && keys.list().some((k) => k.id === s.keyId)),
     account: s?.account || null,
+    viaGirafe: !!s?.viaGirafe,
     linkedAt: s?.linkedAt || null,
     pending: pending && { userCode: pending.userCode, verifyUrl: pending.verifyUrl, expiresAt: pending.expiresAt, state: pending.state, error: pending.error || null },
   };
 }
 
+// Through your GIRAFE, when both sites know each other: GIRAFE signs a two-minute note saying
+// whose kit this is, the market takes it, and there is nothing to approve a second time. It is
+// tried first and falls back to the device flow below at the slightest doubt - an older GIRAFE or
+// market, no shared secret, a refused note: the person must never be stuck because a short cut
+// did not work.
+async function connectThroughGirafe() {
+  const girafe = require('./girafe-link');
+  if (!girafe.status().connected) return null;
+  let handoff;
+  try { handoff = (await girafe.marketHandoff()).handoff; } catch { return null; }
+  if (!handoff) return null;
+  let r;
+  try { r = await call('POST', '/api/kit/link/handoff', { json: { handoff }, purpose: 'Connect to the market through your GIRAFE account' }); }
+  catch { return null; }
+  if (!r || !r.token) return null;
+  forget();
+  const k = keys.add({ label: 'GIRAFE Market link', service: 'market', value: r.token });
+  write({ keyId: k.id, account: r.account || null, base: base(), viaGirafe: true, linkedAt: new Date().toISOString() });
+  return status();
+}
+
 async function connect() {
   clearTimeout(timer);
+  const quick = await connectThroughGirafe();
+  if (quick) return quick;
   const r = await call('POST', '/api/kit/link/start', { json: { kitName: `GIRAFE node kit on ${os.hostname()}`.slice(0, 80), kitVersion: KIT_VERSION }, purpose: 'Connect to the market (start)' });
   if (!r.deviceCode || !r.userCode || !r.verifyUrl) throw new Error('The market gave an unexpected answer.');
   const verify = new URL(r.verifyUrl);

@@ -18,6 +18,12 @@ buttons telling a quarter of the story each. 🔗 Chain shows the four as four r
 GIRAFE account, your nodes repository, the market - each with its state and one action, and the
 dialogs you know one click away.
 
+**The market, through your GIRAFE.** Connecting the kit to GIRAFE Market used to be a second
+approval with its own code. When your GIRAFE and the market know each other, your GIRAFE now
+vouches for the kit and the link is simply made - the chain's market row says "through your GIRAFE
+account". Anything in the way (an older site, no shared secret) and the old code flow runs as
+before.
+
 **The kit says hello.** Its regular check with GIRAFE ("am I still signed in?") now also says
 where it runs and how its chain stands: the computer's name and port, the kit's version, the
 GitHub repository of nodes and how many of them are not saved yet, whether the market is linked,
