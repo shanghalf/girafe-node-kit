@@ -61,9 +61,14 @@ export function createGirafePanel({ el, S, api, kindOf, nodeRun, packOf, changed
   const field = (label, ...kids) => el('label', { class: 'pm-field' }, el('span', {}, ...(Array.isArray(label) ? label : [label])), ...kids);
   const help = (text, cls = '') => el('p', { class: 'pm-help ' + cls, text });
 
-  function keySelect(value, onSet) {
+  // GIRAFE's Key bank has no service, so its select lists every key. The kit's keys do carry one
+  // and the host refuses a key of another service, so the kit marks those - the only difference.
+  function keySelect(value, onSet, service) {
     const sel = el('select', {}, el('option', { value: '', text: '(no key selected)' }),
-      ...S.keys.map((x) => el('option', { value: x.id, text: `${x.label}${x.service ? ` — ${x.service}` : ''}` })));
+      ...S.keys.map((x) => el('option', {
+        value: x.id,
+        text: `${x.label}${x.service ? ` — ${x.service}` : ''}${service && x.service && x.service !== service ? ` ⚠ not a ${service} key` : ''}`,
+      })));
     sel.value = value || '';
     sel.addEventListener('change', () => onSet(sel.value));
     return sel;
@@ -107,13 +112,13 @@ export function createGirafePanel({ el, S, api, kindOf, nodeRun, packOf, changed
           keySelect(pk.keySlots?.[slot.slot], async (v) => {
             try { pk.keySlots = (await api(`/api/packs/${pk.id}/keys`, { method: 'POST', body: JSON.stringify({ slot: slot.slot, keyId: v || null }) })).keySlots; } catch (e) { flash(e.message); }
             rerender();
-          }),
+          }, slot.service),
           help('One key for every node of the pack. GIRAFE adds it to the call; the nodes never see it.')));
       }
     } else {
       for (const slot of c.keys || []) {
         out.push(field(slot.label || slot.slot,
-          keySelect(n.keySlots?.[slot.slot], (v) => { n.keySlots = { ...(n.keySlots || {}), [slot.slot]: v }; changed({ undoable: false, panel: false }); }),
+          keySelect(n.keySlots?.[slot.slot], (v) => { n.keySlots = { ...(n.keySlots || {}), [slot.slot]: v }; changed({ undoable: false, panel: false }); }, slot.service),
           S.keys.length ? help(`Pick your ${slot.service} key from your Key bank. GIRAFE adds it to the call; the plugin never sees it.`)
             : el('p', { class: 'pm-help' }, 'No keys saved yet - add one in My account → Key bank. ', el('button', { type: 'button', class: 'pm-link-btn', text: '(in the kit: 🔑 Keys)', onclick: () => openKeys() }))));
       }

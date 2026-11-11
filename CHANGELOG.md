@@ -3,6 +3,15 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.11.1 (2026-11-11)
+
+**Telling a refused key from a wrong key.** When a service answers "no" to a key, the Network list
+(🔑 Keys › Network) now shows the status it answered with, so `sent (service said no) · 401` reads
+as "the service refused this key" rather than just "no". And in a plugin node's **As in GIRAFE**
+panel, a key saved for another service is marked `⚠ not a <service> key` in the key list - the kit's
+keys carry a service and the host refuses a key of another one, which GIRAFE's own Key bank doesn't
+track. Nothing else changed: same host API, same simulated GIRAFE.
+
 ## 0.11.0 (2026-11-11)
 
 **A plugin node's panel now shows what GIRAFE will show.** Select a plugin node: the panel has two

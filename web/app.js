@@ -903,7 +903,7 @@ function networkBox() {
       el('span', { class: 'net-time', text: e.at.slice(11, 19) }),
       el('span', { class: 'net-what', text: `${e.purpose || '?'}${e.key ? ' · key "' + e.key + '"' : ''}` }),
       el('span', { class: 'net-host', text: e.host }),
-      el('span', { class: 'net-res', text: e.result + (e.detail ? ': ' + e.detail : '') })));
+      el('span', { class: 'net-res', text: e.result + (e.status ? ` · ${e.status}` : '') + (e.detail ? ': ' + e.detail : '') })));
     box.replaceChildren(el('div', { class: 'box-title', text: '🛡 Network: where your keys go' }),
       el('div', { class: 'caps', text: `${ok ? '✓' : '⚠️'} Since the kit started: ${s.requests} request(s) to the internet, ${s.withKey} with a key, each to its own service only. Blocked: ${s.blocked}. Not through the guard: ${s.unexpected}.` }),
       el('div', { class: 'caps', text: 'Allowed addresses: ' + Object.entries(r.hosts).map(([k, h]) => `${S.services[k]?.label || k} → ${h.join(', ')}`).join(' · ') }),
