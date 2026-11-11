@@ -24,9 +24,11 @@ const home = require('./home');
 const session = require('./session');
 
 const WEB = path.join(__dirname, '..', 'web');
-const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.mp4': 'video/mp4' };
 // The page may load and contact only this kit: nothing from or to the internet.
-const CSP = "default-src 'self'; connect-src 'self'; img-src 'self' blob: data:; media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+// 'wasm-unsafe-eval' and blob: workers are for the 3D viewer (web/vendor/model-viewer, the one GIRAFE
+// uses): it unpacks compressed models with WebAssembly. No eval of text, no outside script.
+const CSP = "default-src 'self'; connect-src 'self'; img-src 'self' blob: data:; media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 const runs = new Map(); // runId -> { run, at }
 const MAX_UPLOAD = 25 * 1024 * 1024;
 const MAX_MODEL_UPLOAD = 150 * 1024 * 1024; // a 3D model for a file field (host API 2)

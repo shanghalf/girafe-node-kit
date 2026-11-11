@@ -3,6 +3,33 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.11.0 (2026-11-11)
+
+**A plugin node's panel now shows what GIRAFE will show.** Select a plugin node: the panel has two
+tabs.
+
+- **🦒 As in GIRAFE** (the default): the panel the node will have in GIRAFE's Promptmixer, with
+  GIRAFE's own look. Same fields in the same order and the same words: title, Run from here, the
+  description with pack and version, the key picker (every saved key, as in GIRAFE's Key bank), the
+  fields of your manifest (text, number, select, checkbox, textarea, file), the "It may" line, On
+  the phone, then the status and what came out ("📷 2 images in this output", or the text cut at
+  2,000 characters, exactly as GIRAFE does), and Delete node.
+- A node with `"display": "runs"` shows GIRAFE's result list: Latest on top, earlier runs under a
+  dashed line, pictures in a grid, and **3D models in GIRAFE's own 3D viewer**: they turn, their
+  animation plays, several moves play one after the other with a chip each, and the Look select
+  (Natural, Matte, Clay, Studio, Bright) lights them as GIRAFE does. One live viewer at a time; the
+  other runs are tiles with "Show it in 3D".
+- **🛠 Kit tools**: the kit's own panel, unchanged (manifest, problems, packaging, sending to GIRAFE
+  and the market).
+
+What you set in one tab is set in the other: both work on the same node.
+
+One difference is written in the panel: "Run from here" runs the whole graph in the kit.
+
+The 3D viewer is the file GIRAFE itself serves (model-viewer 4.4.0, Apache 2.0), kept inside the
+kit: nothing is loaded from the internet. It needs WebAssembly to unpack compressed models, so the
+page's policy now allows that (and nothing else new).
+
 ## 0.10.1 (2026-11-11)
 
 Security fixes for the sandbox plugin nodes run in (same changes on GIRAFE's server).

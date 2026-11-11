@@ -25,7 +25,7 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .run-status { color: var(--soft); font-size: 13px; min-width: 80px; }
 .version { font-size: 12px; color: var(--soft); border: 1px dashed var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
 
-.body { display: grid; grid-template-columns: 190px 1fr 330px; height: calc(100% - 52px); }
+.body { display: grid; grid-template-columns: 190px 1fr 360px; height: calc(100% - 52px); }
 .palette { border-right: 1px solid var(--line); background: var(--bg2); padding: 10px; overflow-y: auto; }
 .pal-title { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); margin: 10px 0 6px; display: flex; justify-content: space-between; align-items: center; }
 .pm-palette-btn { display: flex; align-items: center; gap: 6px; width: 100%; margin-bottom: 6px; background: #11141a; color: #e8e8e8; border: 1px solid var(--pm-kind-color, #333a45); border-left: 4px solid var(--pm-kind-color, #333a45); border-radius: 6px; padding: 0.45rem 0.6rem; font-size: 0.85rem; text-align: left; }

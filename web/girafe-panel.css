@@ -1,0 +1,78 @@
+/* The "As in GIRAFE" panel: GIRAFE's own node panel styles (frontend/src/App.css in GIRAFE), copied
+   so a plugin node looks here as it will there. Everything is scoped under .gf. Keep in step. */
+.panel-tabs { display: flex; gap: 6px; margin: -4px 0 12px; position: sticky; top: -14px; background: var(--bg2); padding: 8px 0; z-index: 2; border-bottom: 1px solid var(--line); }
+.panel-tabs button { flex: 1; border-radius: 999px; padding: 5px 8px; font-size: 12.5px; white-space: nowrap; }
+.panel-tabs button.on { background: #23314a; border-color: #7fb3ff; color: #fff; }
+.gf { font-family: system-ui, -apple-system, sans-serif; color: #e8e8e8; background: #1c2027; border: 1px solid #2a2f38; border-radius: 8px; padding: 0.7rem; font-size: 16px; line-height: normal; }
+.gf [hidden] { display: none !important; }
+.gf h3 { margin: 0 0 0.83em; font-size: 1.17em; display: block; }
+.gf .kit-note { border: 1px dashed #4a5568; border-radius: 6px; padding: 4px 8px; margin: 0 0 0.65rem; font-size: 0.72rem; color: #8b94a3; }
+.gf .pm-field { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.65rem; font-size: 0.82rem; color: #9aa5b4; }
+.gf .pm-field input, .gf .pm-field select, .gf .pm-field textarea { background: #11141a; color: #e8e8e8; border: 1px solid #333a45; border-radius: 6px; padding: 0.4rem 0.5rem; font-size: 0.85rem; font-family: inherit; width: auto; min-height: 0; }
+.gf .pm-field input[type=checkbox] { width: auto; padding: 0; }
+.gf .pm-field-check { flex-direction: row; align-items: center; gap: 0.4rem; }
+.gf .pm-field-checkbox { display: flex; flex-direction: row; align-items: flex-start; gap: 0.45rem; }
+.gf .pm-field-checkbox input { margin-top: 0.15rem; flex-shrink: 0; }
+.gf .pm-help { color: #9aa5b4; font-size: 0.82rem; line-height: 1.4; margin: 0.2rem 0 0.65rem; }
+.gf .pm-field .pm-help { margin: 0; }
+.gf .pm-hint { margin: 0.2rem 0 0.4rem; font-size: 0.78rem; line-height: 1.4; opacity: 0.75; }
+.gf .pm-cached-label { color: #6b7280; font-weight: 500; }
+.gf .pm-palette-pack { color: #8b94a3; font-weight: 400; }
+.gf .pm-error-text { color: #f08a8a; }
+.gf .pm-btn { display: inline-flex; align-items: center; gap: 0.35rem; background: rgba(255, 255, 255, 0.06); color: #cfd3da; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 999px; padding: 0.35rem 0.9rem; font-size: 0.82rem; line-height: 1.2; cursor: pointer; margin-bottom: 0.65rem; }
+.gf .pm-btn:hover { background: rgba(255, 255, 255, 0.11); border-color: rgba(255, 255, 255, 0.22); }
+.gf .pm-btn:disabled { opacity: 0.5; cursor: default; }
+.gf .pm-btn-danger { background: rgba(224, 90, 90, 0.1); color: #e2857a; border-color: rgba(224, 90, 90, 0.35); }
+.gf .pm-btn-small { padding: 0.22rem 0.65rem; font-size: 0.75rem; margin: 0; display: inline-block; }
+.gf .pm-link-btn { background: none; border: none; color: #4a90e2; text-decoration: underline; cursor: pointer; padding: 0; font-size: 0.82rem; text-align: left; }
+.gf .pm-plugin-files { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.gf .pm-plugin-files li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 6px; border: 1px solid #2a2f38; border-radius: 6px; }
+.gf .pm-plugin-files img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; background: #0d1015; flex: none; }
+.gf .pm-plugin-file-icon { width: 32px; text-align: center; font-size: 18px; flex: none; }
+.gf .pm-plugin-file-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.82rem; }
+.gf .pm-plugin-file-add { display: inline-block; cursor: pointer; margin-top: 2px; }
+.gf .pm-phone-fields { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid #2a2f38; padding-top: 8px; }
+.gf .pm-phone-label { width: 100%; box-sizing: border-box; }
+.gf .pm-run-info { border-top: 1px solid #2a2f38; margin-top: 0.6rem; padding-top: 0.6rem; font-size: 0.8rem; color: #9aa5b4; }
+.gf .pm-output-box { background: #11141a; border: 1px solid #2a2f38; border-radius: 6px; padding: 0.5rem; margin-top: 0.35rem; font-size: 0.78rem; color: #ccc; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; }
+.gf .pm-inspector-actions { margin-top: 0.8rem; }
+.gf .pm-inspector-actions .pm-btn { margin: 0; }
+/* the runs a "display: runs" node keeps, drawn like GIRAFE's result list */
+.gf .phone-run-hint { color: #9aa4b2; font-size: 0.85rem; margin: 0 0 12px; }
+.gf .phone-results { margin-top: 12px; }
+.gf .phone-results-title { font-size: 1rem; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gf .phone-results-title small { color: #7a8291; font-weight: 400; font-size: 0.78rem; }
+.gf .phone-latest-badge { background: #2f7d4f; color: #eafff1; border-radius: 999px; padding: 2px 10px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em; }
+.gf .phone-run-rec.earlier { opacity: 0.72; }
+.gf .phone-run-sep { display: flex; align-items: center; gap: 10px; margin: 26px 0 12px; color: #7a8291; font-size: 0.78rem; }
+.gf .phone-run-sep::before, .gf .phone-run-sep::after { content: ''; flex: 1; border-top: 1px dashed #3a4150; }
+.gf .phone-run-sep span { white-space: nowrap; }
+.gf .phone-res { background: #14171c; border: 1px solid #2a2f38; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.gf .phone-res h4 { margin: 0 0 8px; font-size: 0.9rem; color: #9aa4b2; font-weight: 600; }
+.gf .phone-res-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; font-size: 0.95rem; }
+.gf .phone-res-list { margin: 0; padding-left: 1.2rem; line-height: 1.5; overflow-wrap: anywhere; }
+.gf .phone-res-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.gf .phone-res-images img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: #0f1115; border-radius: 8px; display: block; }
+.gf .phone-res-pic { padding: 0; border: 0; background: none; cursor: pointer; display: block; width: 100%; }
+.gf .phone-res-none { color: #7a8291; margin: 0; }
+.gf .phone-model { display: flex; flex-direction: column; gap: 8px; }
+.gf .phone-model-box { position: relative; border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #2b3444 0%, #151a22 70%); }
+.gf .phone-model-stage { position: relative; width: 100%; touch-action: none; }
+.gf .phone-model-stage model-viewer { width: 100%; height: 100%; background: transparent; display: block; }
+.gf .phone-model-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #9aa6b8; font-size: 0.85rem; pointer-events: none; text-align: center; padding: 1rem; }
+.gf .phone-model-badge { position: absolute; left: 8px; top: 8px; padding: 3px 8px; border-radius: 999px; background: rgba(82,210,115,0.18); color: #7fe3a0; font-size: 0.72rem; font-weight: 600; pointer-events: none; }
+.gf .phone-model-tags { display: flex; flex-direction: column; gap: 6px; }
+.gf .phone-model-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.gf .phone-model-chips button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px; border-radius: 999px; border: 1px solid #3a4352; background: #1b2029; color: #c9d1dd; font-size: 0.8rem; }
+.gf .phone-model-chips button.on { border-color: #7fb3ff; color: #fff; background: #23314a; }
+.gf .phone-model-chips button.now { border-color: #52d273; color: #fff; background: #1f3a2a; }
+.gf .phone-model-card { display: flex; gap: 10px; align-items: stretch; padding: 8px; border: 1px solid #2a2f38; border-radius: 10px; background: #151922; }
+.gf .phone-model-card-pic { flex: 0 0 88px; height: 88px; padding: 0; border: 1px solid #2a2f38; border-radius: 8px; background: #0e1117; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 30px; cursor: pointer; }
+.gf .phone-model-card-pic img { width: 100%; height: 100%; object-fit: contain; }
+.gf .phone-model-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.gf .phone-model-card-body b { font-size: 0.88rem; }
+.gf .phone-model-card-body small { color: #9aa6b8; }
+.gf .phone-model-card-acts { margin-top: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.gf .phone-model-card-acts button { min-height: 34px; padding: 4px 10px; border-radius: 8px; border: 1px solid #3d7bd9; background: #1d2330; color: #a9c8ff; font-size: 0.82rem; }
+.gf .look-picker { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #aab3c2; margin: 6px 0 2px; }
+.gf .look-picker select { background: #161b23; color: #e6e9ef; border: 1px solid #2f3846; border-radius: 6px; padding: 3px 6px; font-size: 0.78rem; width: auto; }

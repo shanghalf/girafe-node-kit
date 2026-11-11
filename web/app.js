@@ -1,4 +1,5 @@
 // GIRAFE node kit - the canvas, palette and panel. Plain JavaScript, no build step.
+import { createGirafePanel } from './girafe-panel.js';
 const $ = (s) => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
@@ -552,8 +553,23 @@ function renderPanel() {
   if (st && !(k.display === 'runs')) kids.push(runBox(st));
   if (k.display === 'runs') kids.push(runsBox(n, st));
   kids.push(el('div', { class: 'row' }, el('button', { text: n.disabled ? '● Turn on' : '○ Turn off', onclick: () => { n.disabled = !n.disabled; changed(); } }), el('button', { class: 'danger', text: '🗑 Delete', onclick: deleteSelected })));
-  p.replaceChildren(...kids);
+  // A plugin node has two panels: what GIRAFE will show for it (the one to test with), and the
+  // kit's own tools (manifest, problems, packaging, sending). The choice is remembered.
+  if (k.core) return p.replaceChildren(...kids);
+  const tab = panelTab();
+  const tabs = el('div', { class: 'panel-tabs' },
+    el('button', { class: tab === 'girafe' ? 'on' : '', text: '🦒 As in GIRAFE', title: 'The panel this node will have in GIRAFE: same fields, same order, same result views', onclick: () => setPanelTab('girafe') }),
+    el('button', { class: tab === 'kit' ? 'on' : '', text: `🛠 Kit tools${k.problems?.length ? ' ⚠️' : ''}`, title: 'Manifest, problems, packaging, sending to GIRAFE and the market', onclick: () => setPanelTab('kit') }));
+  if (tab === 'kit') return p.replaceChildren(tabs, ...kids);
+  const keepScroll = p.scrollTop;
+  p.replaceChildren(...[tabs,
+    k.problems?.length ? el('div', { class: 'box' }, el('div', { class: 'box-title', text: 'Can\'t run' }), el('ul', { class: 'problems' }, ...k.problems.map((x) => el('li', { text: x })))) : null,
+    girafePanel(n)].filter(Boolean));
+  p.scrollTop = keepScroll;
 }
+const panelTab = () => { try { return localStorage.getItem('kit.panelTab') === 'kit' ? 'kit' : 'girafe'; } catch { return 'girafe'; } };
+function setPanelTab(v) { try { localStorage.setItem('kit.panelTab', v); } catch { /* not kept */ } renderPanel(); }
+const girafePanel = createGirafePanel({ el, S, api, kindOf, nodeRun, packOf: (id) => packOf(id), changed: (o) => changed(o), rerender: () => renderPanel(), runGraph: () => runGraph(), deleteSelected: () => deleteSelected(), openKeys: () => openKeys(), flash: (m) => flash(m) });
 // What a plugin is allowed to do, in plain words (what a user checks before installing it).
 function capsText(c = {}) {
   const out = [];

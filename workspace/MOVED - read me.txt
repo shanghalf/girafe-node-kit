@@ -1,0 +1,6 @@
+Your GIRAFE kit work (nodes, graphs, keys, GitHub link, signing key) was copied to:
+
+  /tmp/kithome/GIRAFE kit workspace
+
+Every copy of the kit on this computer now uses that folder, so updates and new downloads never lose it.
+This folder was left as it was. Delete it once you are sure everything is there.

@@ -76,7 +76,7 @@
 
 <h1>GIRAFE node kit</h1>
 <p class="lead">Technical documentation: how the kit is built, how it runs a graph, how plugin nodes are isolated, and how API keys are handled.</p>
-<p class="meta">Last updated 2026-11-11 (sandbox security fixes: <code>import()</code> can no longer reach the network, no <code>eval</code>, limits on what a node sends back). Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
+<p class="meta">Last updated 2026-11-11 (a plugin node's panel now has an "As in GIRAFE" tab with GIRAFE's own panel and 3D viewer; the page may run WebAssembly for that viewer). Source of truth: this file, <code>docs.html</code>, at the root of the repository. The plugin contract has its own file, <code>HOST_API.md</code>.</p>
 
 <h2 id="overview">1. Overview</h2>
 <p>The kit is a small, local copy of GIRAFE's Promptmixer canvas, used to build <strong>plugin nodes</strong>: nodes written by anyone, run in a sandbox, that talk to GIRAFE only through a fixed contract (the <em>host API</em>). It runs entirely on the user's computer: a Node.js server on <code>127.0.0.1</code> and a web page served by it.</p>
@@ -254,6 +254,7 @@ docs.html               this document</code></pre>
 </ul>
 
 <h3 id="page">The page</h3>
+<p><strong>Two panels for a plugin node.</strong> <em>As in GIRAFE</em> (<code>web/girafe-panel.js</code>, styles <code>web/girafe-panel.css</code>) is the panel the node will have in GIRAFE's Promptmixer: same fields in the same order and words (title, Run from here, description and version, key picker listing every saved key, the manifest's fields, "It may", On the phone, status and output, Delete), and for <code>"display": "runs"</code> the Latest / Earlier runs list with GIRAFE's 3D viewer (<code>web/vendor/model-viewer-4.4.0.min.js</code>, Apache 2.0, the file GIRAFE serves; looks Natural / Matte / Clay / Studio / Bright, moves as chips). It follows GIRAFE's <code>PromptMixerView.jsx</code> (<code>renderPluginFields</code>), <code>PhoneModel.jsx</code> and <code>viewerLook.js</code>: when GIRAFE's panel changes, change these two files. <em>Kit tools</em> is the kit's own panel (manifest, problems, packaging, sending). The tab is remembered in <code>localStorage</code> (<code>kit.panelTab</code>). Core nodes have one panel. The 3D viewer unpacks compressed models with WebAssembly, so the page's policy allows <code>'wasm-unsafe-eval'</code> and blob workers; still no outside script and no <code>eval</code> of text.</p>
 <p><code>web/app.js</code> builds the canvas with plain DOM and SVG: nodes (220 px cards, GIRAFE's classes and colours), wires (curves coloured by source, green when delivered, grey dashes when dead), pointer-event dragging, wheel zoom, the panel (fields from the kind or the plugin manifest), the Yes / No dock, the Keys dialog. Graphs autosave half a second after a change; Ctrl+Z undoes structural changes.</p>
 
 <h2 id="keys">5. How keys are managed</h2>
@@ -311,7 +312,8 @@ docs.html               this document</code></pre>
 <h3 id="key-page">The page lock (CSP)</h3>
 <p>Every page response carries:</p>
 <pre><code>Content-Security-Policy: default-src 'self'; connect-src 'self'; img-src 'self' blob: data:;
-  media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none';
+  media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval';
+  worker-src 'self' blob:; object-src 'none';
   frame-ancestors 'none'; base-uri 'none'; form-action 'self'
 Referrer-Policy: no-referrer</code></pre>
 <p>The browser enforces it: the page can only load scripts from the kit and only send requests to the kit. Even if the page's code were changed to send the pasted key elsewhere, the browser would refuse. The kit uses no CDN, no outside font or script.</p>
