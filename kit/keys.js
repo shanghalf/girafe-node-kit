@@ -81,7 +81,7 @@ function remove(id) {
   data.keys = data.keys.filter((k) => k.id !== id); write(data);
 }
 // Server side only: the key value, decrypted in memory for one call to its own service.
-// The only callers are kit/ai/*, which send it through netguard.send() (own service only).
+// The only callers are kit/ai/* and kit/service-tasks.js, which send it through netguard.send() (own service only).
 function use(id, wantService) {
   const k = read().keys.find((x) => x.id === id);
   if (!k) throw new Error('Choose a key for this node (🔑 Keys at the top to add one).');

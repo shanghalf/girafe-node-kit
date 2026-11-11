@@ -76,7 +76,7 @@ async function girafe({ force = false } = {}) {
     if (r.status === 404) return (save({ girafe: { base, at: Date.now(), old: true } }), readFile().girafe);
     const d = r.data;
     if (!r.ok || !d || !isVer(d.girafeVersion) || !Array.isArray(d.hostApis) || !isVer(d.minKit)) throw new Error(`GIRAFE answered HTTP ${r.status}`);
-    const info = { base, at: Date.now(), girafeVersion: d.girafeVersion, hostApi: Number(d.hostApi), hostApis: d.hostApis.map(Number).filter(Number.isInteger), minKit: d.minKit, keyServices: Array.isArray(d.keyServices) ? d.keyServices.map(String) : null, packs: Number(d.packs) || 0, billing: Number(d.billing) || 0, kit: d.kit && typeof d.kit === 'object' ? { repo: String(d.kit.repo || ''), branch: String(d.kit.branch || '') } : null };
+    const info = { base, at: Date.now(), girafeVersion: d.girafeVersion, hostApi: Number(d.hostApi), hostApis: d.hostApis.map(Number).filter(Number.isInteger), minKit: d.minKit, keyServices: Array.isArray(d.keyServices) ? d.keyServices.map(String) : null, packs: Number(d.packs) || 0, billing: Number(d.billing) || 0, tasks: Number(d.tasks) || 0, kit: d.kit && typeof d.kit === 'object' ? { repo: String(d.kit.repo || ''), branch: String(d.kit.branch || '') } : null };
     save({ girafe: info });
     return info;
   } catch (e) {
@@ -148,6 +148,7 @@ function checkNode(manifest, g) {
     if (missing.length) return { code: 'girafe-behind', text: `${name} uses a ${missing.join(', ')} key, which GIRAFE ${g.girafeVersion} doesn't offer yet.` };
   }
   if (Array.isArray(manifest.billing) && manifest.billing.length && !g.billing) return { code: 'girafe-behind', text: `${name} declares "billing", which GIRAFE ${g.girafeVersion} doesn't take yet (GIRAFE 0.73.0 or newer does).` };
+  if ((manifest.fields || []).some((f) => f && f.type === 'tasks') && !g.tasks) return { code: 'girafe-behind', text: `${name} has a "tasks" field, which GIRAFE ${g.girafeVersion} doesn't take yet (GIRAFE 0.91.0 or newer does).` };
   return null;
 }
 
@@ -202,7 +203,7 @@ async function beforeSendPack(manifests, pack) {
 
 // After GIRAFE refused with 426/409, keep its answer so the page shows it at once.
 function remember(compat) {
-  if (compat && isVer(compat.girafeVersion)) save({ girafe: { base: girafeBase(), at: Date.now(), girafeVersion: compat.girafeVersion, hostApi: Number(compat.hostApi), hostApis: (compat.hostApis || []).map(Number), minKit: compat.minKit, keyServices: compat.keyServices || null, packs: Number(compat.packs) || 0, billing: Number(compat.billing) || 0, kit: compat.kit || null } });
+  if (compat && isVer(compat.girafeVersion)) save({ girafe: { base: girafeBase(), at: Date.now(), girafeVersion: compat.girafeVersion, hostApi: Number(compat.hostApi), hostApis: (compat.hostApis || []).map(Number), minKit: compat.minKit, keyServices: compat.keyServices || null, packs: Number(compat.packs) || 0, billing: Number(compat.billing) || 0, tasks: Number(compat.tasks) || 0, kit: compat.kit || null } });
 }
 
 module.exports = { status, girafe, latest, checkNode, beforeSend, beforeSendPack, remember, updateSource, cmp, nodeOk, isVer, _reset: () => { mem = null; } };

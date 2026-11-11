@@ -1,5 +1,6 @@
 // GIRAFE node kit - the canvas, palette and panel. Plain JavaScript, no build step.
 import { createGirafePanel } from './girafe-panel.js';
+import { tasksField } from './tasks-field.js';
 const $ = (s) => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
@@ -536,6 +537,11 @@ function renderPanel() {
     const isPlugin = n.type.startsWith('plugin:');
     const get = () => (isPlugin ? n.settings?.[f.key] : n[f.key]);
     const set = (v) => { if (isPlugin) { n.settings = { ...(n.settings || {}), [f.key]: v }; } else n[f.key] = v; changed({ undoable: false, panel: false }); };
+    if (f.type === 'tasks') {
+      const slotOf = ((pk ? pk.keys : k.capabilities?.keys) || []).find((x) => x.slot === f.slot) || {};
+      kids.push(el('div', { class: 'gf gf-inline' }, tasksField({ el, api, f, pluginId: k.id, service: slotOf.service || f.slot, keyId: pk ? pk.keySlots?.[f.slot] : n.keySlots?.[f.slot], value: get(), set, rerender: () => renderPanel() })));
+      continue;
+    }
     kids.push(f.type === 'image' ? imageField(n) : f.type === 'key' ? keyField(f, get(), set) : f.type === 'model' ? modelField(f, n, get(), set) : f.type === 'file' ? fileField(f, get(), set) : field(f, get() ?? (f.default ?? ''), set));
   }
   {

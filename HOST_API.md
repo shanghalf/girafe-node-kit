@@ -62,8 +62,8 @@ key service the node pays with (the service must be one of its key slots):
 "billing": [{
   "service": "tripo", "unit": "credit", "units": "credits", "usdPerUnit": 0.01,
   "balance": { "url": "https://openapi.tripo3d.ai/v3/account/balance", "left": "data.balance", "held": "data.frozen" },
-  "history": { "url": "https://openapi.tripo3d.ai/v3/account/usage/history?start_time={start}&end_time={end}&page_size=100&page_num={page}",
-               "items": "data.items", "ok": ["success"], "maxDays": 31,
+  "history": { "url": "https://openapi.tripo3d.ai/v3/account/usage/history?start_time={start}&end_time={end}&page_size=100",
+               "items": "data.items", "next": "data.next_cursor", "cursorParam": "cursor", "ok": ["success"], "maxDays": 31,
                "fields": { "taskId": "task_id", "units": "credits_consumed", "type": "type", "model": "model_version",
                            "status": "status", "createdAt": "created_at", "completedAt": "completed_at" } },
   "csv": { "taskId": "task_id", "units": "credits", "type": "type", "model": "model_version",
@@ -80,6 +80,9 @@ key service the node pays with (the service must be one of its key slots):
   in. `items` is the dot path to the list; `fields` says where each task's id, units, type, model,
   status and dates are (`taskId` and `units` required). A status not in `ok` (default `success`,
   `done`, `completed`) with no units counts as failed. `maxDays`: how far back the service goes.
+  Paging (GIRAFE 0.91.0): a service that pages with a cursor declares `next` (dot path to the next
+  page's cursor in the answer) and `cursorParam` (the name it is sent back as, default `cursor`);
+  the host stops when `next` is empty. Without them, `{page}` in the address pages as above.
 - `csv` (optional): the column names of the history file the service lets you export, for the
   same import by file.
 - `balance` and `history` addresses must be https and on the service's own hosts: the user's key
@@ -130,7 +133,7 @@ run there. The kit checks each report and shows it in the node's log (💲 line)
 | `category` | Optional. The section the node is listed under in GIRAFE's palette ("Your plugin nodes" › this name), 40 characters at most. Nodes with the same category sit together. |
 | `inputs` | `min` / `max` input sockets. With `min: 1` the node is skipped when nothing arrives. `max: 0` = a starting node. |
 | `outputs` | Output socket names. `["out"]` for one; `["yes", "no"]` for named exits. Host API 2: `[]` = a node that sends nothing on (it keeps or shows what reaches it); what `run` returns is shown on the node. |
-| `fields` | The panel. Types: `text`, `textarea`, `number`, `select` (with `options`: `["a","b"]` or `[["value","Label"]]`), `checkbox`, and (host API 2) `file` (with optional `accept`, like `".glb,.fbx"`, and `multiple: true`). Optional `default`, `placeholder`. A `file` field's value is a file reference (a list with `multiple`), readable with `ctx.files.read` like a file that arrived on an input. Files: pictures (PNG, JPEG, WebP, GIF, 25 MB) and 3D models (GLB, FBX, OBJ, STL, 150 MB). |
+| `fields` | The panel. Types: `text`, `textarea`, `number`, `select` (with `options`: `["a","b"]` or `[["value","Label"]]`), `checkbox`, and (host API 2) `file` (with optional `accept`, like `".glb,.fbx"`, and `multiple: true`). Optional `default`, `placeholder`. A `file` field's value is a file reference (a list with `multiple`), readable with `ctx.files.read` like a file that arrived on an input. Files: pictures (PNG, JPEG, WebP, GIF, 25 MB) and 3D models (GLB, FBX, OBJ, STL, 150 MB). And (host API 2, GIRAFE 0.91.0) `tasks`: see *Tasks fields* below. |
 | `streams` | Host API 2. `true` when one firing may send several packets with `ctx.emit` (one per item). GIRAFE plans a run before it starts, so it must know: without it, the next node gets only the last packet when it also takes a single value. Leave it out for a node that sends one value per firing. |
 | `display` | Host API 2. `"runs"`: the host keeps what the node sent (or, with `"outputs": []`, returned) over its last 10 runs and shows them in its panel, newest first, pictures and 3D models included. In GIRAFE this is the Result stack's view (also on the phone). |
 | `limits` | Host API 2. `{ "seconds": n }`: how long one firing may run, 1 to 3600 (default 60). For a node that waits on a slow service; Stop still ends it at once. |
@@ -148,6 +151,37 @@ run there. The kit checks each report and shows it in the node's log (💲 line)
 | `"keys": [{ "slot": "gemini", "service": "gemini", "label": "Gemini API key" }]` | A key slot. The user picks which of their keys fills it in the node's panel; `ctx.http({ slot: "gemini", ... })` sends with that key added by the host. **Your code never sees the key.** Services: `anthropic`, `openai`, `gemini`, and (host API 2) `tripo`; the service's API host must be in `network`. |
 
 Coming later, declared the same way: `"ai": true` (`ctx.ai.ask`), and more key services.
+
+### Tasks fields (pick past tasks of a service)
+
+Host API 2, GIRAFE 0.91.0. A `tasks` field lets the user pick tasks they already ran at a service
+(models made on Tripo, say) so the node can fetch their results again without paying twice:
+
+```json
+{ "key": "collect", "type": "tasks", "label": "My Tripo tasks", "slot": "tripo",
+  "types": ["image_to_model", ["animate_rig", "Rigged"]], "multiple": true }
+```
+
+- `slot`: one of the node's key slots. Its service must have a `billing` entry with a `history`
+  (read with the user's key, "Load from <service>"), a `csv` (the history file the service exports,
+  "Load the exported file"), or both: the panel offers what is declared.
+- `types` (optional): the task types offered in the drop-down, as `"type"` or `["type", "Label"]`,
+  in that order. Tasks of other types are left out. Without it, every type found is offered.
+- `multiple` (optional): pick several tasks (checkboxes) instead of one.
+
+The panel shows a drop-down of the task types (with how many of each were loaded) and a list of
+that type's tasks (date, model, units, short id). Only successful tasks are listed, newest first,
+1000 at most; "Load earlier" reads the window before. The value your node gets in
+`ctx.settings.collect`:
+
+```
+{ "ids": ["32aff9b8-…"], "type": "image_to_model",
+  "items": [{ "taskId": "32aff9b8-…", "type": "image_to_model", "model": "v2.5-20250123", "units": 30, "createdAt": "2026-11-11T05:15:53.458Z" }, …] }
+```
+
+`ids` are the chosen tasks; `items` is everything loaded (use it to know each chosen task's type).
+The host never calls the service on its own at run time: fetching a task's result is up to your
+node, with `ctx.http` and the same key slot.
 
 ## node.js
 

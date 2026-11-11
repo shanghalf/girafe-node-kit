@@ -54,6 +54,8 @@ function setLook(viewer, look) {
 let viewerLoading = null;
 const loadViewer = () => (viewerLoading ||= import('./vendor/model-viewer-4.4.0.min.js'));
 
+import { tasksField } from './tasks-field.js';
+
 export function createGirafePanel({ el, S, api, kindOf, nodeRun, packOf, changed, rerender, runGraph, deleteSelected, openKeys, flash }) {
   // Which kept run shows its models in the one live 3D viewer (GIRAFE keeps a single live viewer).
   const live = new Map(); // node id -> run time
@@ -128,6 +130,12 @@ export function createGirafePanel({ el, S, api, kindOf, nodeRun, packOf, changed
     for (const f of k.fields || []) {
       const v = settings[f.key] ?? f.default ?? '';
       if (f.type === 'file') { out.push(fileField(f, settings[f.key], (x) => set(f.key, x))); continue; }
+      if (f.type === 'tasks') {
+        const slotOf = (pk ? pk.keys : c.keys || []).find((x) => x.slot === f.slot) || {};
+        const keyId = pk ? pk.keySlots?.[f.slot] : n.keySlots?.[f.slot];
+        out.push(tasksField({ el, api, f, pluginId: k.id, service: slotOf.service || f.slot, keyId, value: settings[f.key], set: (x) => set(f.key, x), rerender }));
+        continue;
+      }
       if (f.type === 'checkbox') {
         const box = el('input', { type: 'checkbox' }); box.checked = !!v;
         box.addEventListener('change', () => set(f.key, box.checked));

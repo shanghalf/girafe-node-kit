@@ -50,6 +50,8 @@ function checkBilling(list, services, where) {
       else if (Object.entries(x.fields).some(([k, v]) => !BILL_FIELDS.includes(k) || !BILL_PATH_RE.test(String(v)))) problems.push(`${name} history: "fields" keys are ${BILL_FIELDS.join(', ')}, values dot paths`);
       else if (x.ok !== undefined && (!Array.isArray(x.ok) || x.ok.some((v) => typeof v !== 'string' || v.length > 30))) problems.push(`${name} history: "ok" is a list of status words`);
       else if (x.maxDays !== undefined && !(Number.isInteger(x.maxDays) && x.maxDays >= 1 && x.maxDays <= 366)) problems.push(`${name} history: "maxDays" is 1 to 366`);
+      else if (x.next !== undefined && !BILL_PATH_RE.test(String(x.next))) problems.push(`${name} history: "next" is a dot path to the next page's cursor, like "data.next_cursor"`);
+      else if (x.cursorParam !== undefined && !/^[A-Za-z_][A-Za-z0-9_]{0,30}$/.test(String(x.cursorParam))) problems.push(`${name} history: "cursorParam" is the name of the cursor parameter, like "cursor"`);
     }
     if (b.csv !== undefined) {
       const x = b.csv;

@@ -76,3 +76,20 @@
 .gf .phone-model-card-acts button { min-height: 34px; padding: 4px 10px; border-radius: 8px; border: 1px solid #3d7bd9; background: #1d2330; color: #a9c8ff; font-size: 0.82rem; }
 .gf .look-picker { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #aab3c2; margin: 6px 0 2px; }
 .gf .look-picker select { background: #161b23; color: #e6e9ef; border: 1px solid #2f3846; border-radius: 6px; padding: 3px 6px; font-size: 0.78rem; width: auto; }
+
+/* "tasks" field (host API 2): pick past tasks of a key service - GIRAFE's .pm-tasks rules. */
+.gf-inline { padding: 0; margin: 0; background: none; border: none; font-size: inherit; }
+.gf .pm-tasks-load { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.gf .pm-tasks-load .pm-plugin-file-add { margin: 0; }
+.gf .pm-tasks-type { width: 100%; }
+.gf .pm-tasks-list { max-height: 15rem; overflow-y: auto; border: 1px solid #333a45; border-radius: 6px; background: #11141a; overscroll-behavior: contain; }
+.gf .pm-tasks-row { display: grid; grid-template-columns: auto 1fr auto auto; grid-template-areas: "box when units id" "box model model model"; gap: 0 0.5rem; align-items: center; padding: 0.35rem 0.5rem; border-bottom: 1px solid #222832; cursor: pointer; color: #cfd3da; font-size: 0.78rem; transition: background 0.15s; }
+.gf .pm-tasks-row:last-child { border-bottom: none; }
+.gf .pm-tasks-row:hover { background: rgba(255, 255, 255, 0.04); }
+.gf .pm-tasks-row.on { background: rgba(127, 143, 208, 0.16); box-shadow: inset 3px 0 0 #7f8fd0; }
+.gf .pm-tasks-row input { grid-area: box; margin: 0; }
+.gf .pm-tasks-when { grid-area: when; }
+.gf .pm-tasks-model { grid-area: model; color: #8a93a6; font-size: 0.72rem; }
+.gf .pm-tasks-units { grid-area: units; color: #c9a25a; font-variant-numeric: tabular-nums; }
+.gf .pm-tasks-id { grid-area: id; color: #8a93a6; font-size: 0.7rem; }
+@media (prefers-reduced-motion: reduce) { .gf .pm-tasks-row { transition: none; } }

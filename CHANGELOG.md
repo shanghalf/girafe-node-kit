@@ -3,6 +3,16 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.12.0 (2026-11-11)
+
+**Tasks fields: pick tasks you already ran at a service.** A new field type, `tasks` (host API 2,
+see HOST_API.md › Tasks fields), shows a drop-down of task types and a list of that type's tasks,
+loaded from the service's history with the node's key or from the history file the service lets you
+export. The node gets the chosen task ids. Built for the 3D (Tripo) pack's 3D Model node, which
+fetches your existing Tripo models without paying again. Billing `history` entries can now page with
+a cursor (`next`, `cursorParam`), as Tripo's does. The kit now simulates **GIRAFE 0.91.0**: a node
+with a tasks field should say `"girafe": ">=0.91.0"`.
+
 ## 0.11.2 (2026-11-11)
 
 **A pasted key keeps working when it starts with "Bearer ".** A key copied from a code sample

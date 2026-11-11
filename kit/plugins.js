@@ -35,7 +35,7 @@ function hostAllowed(caps, host) {
   return (caps.network || []).some((h) => h === host || (h.startsWith('*.') && host.endsWith(h.slice(1))));
 }
 
-const FIELD_TYPES = new Set(['text', 'textarea', 'number', 'select', 'checkbox', 'file']);
+const FIELD_TYPES = new Set(['text', 'textarea', 'number', 'select', 'checkbox', 'file', 'tasks']);
 const CHILD = path.join(__dirname, 'sandbox-child.js');
 const TIMEOUT_MS = 60_000;
 const MEMORY_MB = 128;
@@ -77,6 +77,14 @@ function checkManifest(m, dirName) {
     else if (f.type === 'file' && !(m.hostApi >= 2)) problems.push(`field "${f.key}": file fields need "hostApi": 2`);
     else if (f.type === 'file' && f.accept !== undefined && (typeof f.accept !== 'string' || f.accept.length > 200)) problems.push(`field "${f.key}": "accept" is a short list like ".glb,.fbx" or "image/*"`);
     else if (f.type === 'select' && !Array.isArray(f.options)) problems.push(`field "${f.key}": a select needs "options"`);
+    else if (f.type === 'tasks') {
+      // host API 2: pick past tasks of a key service, listed from its history (see HOST_API.md).
+      const slot = (Array.isArray(m.capabilities?.keys) ? m.capabilities.keys : []).find((k) => k && k.slot === f.slot);
+      if (!(m.hostApi >= 2)) problems.push(`field "${f.key}": tasks fields need "hostApi": 2`);
+      else if (!slot) problems.push(`field "${f.key}": "slot" must name one of the node's key slots (its service's history is read with that key)`);
+      else if (f.types !== undefined && (!Array.isArray(f.types) || !f.types.length || f.types.length > 40 || f.types.some((x) => { const v = Array.isArray(x) ? x[0] : x; return typeof v !== 'string' || !/^[a-z0-9_]{1,40}$/.test(v); }))) problems.push(`field "${f.key}": "types" is a list of the service's task types, like ["image_to_model"] or [["image_to_model", "Image to 3D"]]`);
+      else if (f.multiple !== undefined && typeof f.multiple !== 'boolean') problems.push(`field "${f.key}": "multiple" is true or false`);
+    }
   }
   const caps = m.capabilities || {};
   for (const k of Object.keys(caps)) if (!['network', 'ai', 'keys', 'files', 'state'].includes(k)) problems.push(`capability "${k}" is unknown`);

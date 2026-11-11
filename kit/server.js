@@ -22,6 +22,7 @@ const nodeRuns = require('./node-runs');
 const github = require('./github');
 const home = require('./home');
 const session = require('./session');
+const serviceTasks = require('./service-tasks');
 
 const WEB = path.join(__dirname, '..', 'web');
 const STATIC = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.mp4': 'video/mp4' };
@@ -105,6 +106,22 @@ async function handle(req, res) {
   if ((k = m(/^\/api\/node-runs\/([A-Za-z0-9_-]{1,64})$/))) {
     if (req.method === 'GET') return send(res, 200, { runs: nodeRuns.list(k[1]) });
     if (req.method === 'DELETE') { nodeRuns.clear(k[1]); return send(res, 200, { ok: true }); }
+  }
+  // A "tasks" field (host API 2): past tasks of a key service, from its history or its export file.
+  if (req.method === 'POST' && p === '/api/service-tasks') {
+    try {
+      const { plugin: pluginId, field, keyId, before, csv } = await readJson(req);
+      const pl = plugins.getPlugin(String(pluginId || ''));
+      const f = pl && (pl.fields || []).find((x) => x.key === field && x.type === 'tasks');
+      const slot = f && (pl.capabilities.keys || []).find((x) => x.slot === f.slot);
+      if (!slot) return send(res, 404, { error: 'no such tasks field' });
+      const packBilling = pl.pack ? (packs.readPack(pl.pack).billing || []) : [];
+      const billing = require('./billing').billingFor(pl.billing, packBilling).find((b) => b && b.service === slot.service);
+      if (!billing) return send(res, 400, { error: `The package declares no "billing" for ${slot.service}: the kit can't read its history.` });
+      if (typeof csv === 'string' && csv.trim()) return send(res, 200, serviceTasks.fromCsv(billing, csv));
+      if (!keyId) return send(res, 400, { error: `Choose a ${slot.service} key for this node first.` });
+      return send(res, 200, await serviceTasks.fromService(billing, String(keyId), before || null));
+    } catch (e) { return send(res, e instanceof netguard.Blocked ? 403 : 400, { error: e.message }); }
   }
   if (req.method === 'GET' && p === '/api/kinds') return send(res, 200, { core: core.describe(), plugins: plugins.listPlugins() });
 
