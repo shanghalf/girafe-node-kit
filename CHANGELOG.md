@@ -5,6 +5,19 @@ with what plugin authors need to do.
 
 ## 0.14.0 (2026-11-11)
 
+**One place, one shortcut, and it keeps itself up to date.** Unzipped in Downloads or on the
+Desktop, the kit now copies itself to one folder - `C:\Users\<you>\GIRAFE kit`, `~/GIRAFE kit` -
+puts a **GIRAFE kit** shortcut on your desktop and runs from there, so finding it again on a second
+computer is one double-click instead of ten minutes. The folder you unzipped is kept, with a note
+saying where it went; your nodes and keys were never in it. In 🔗 Chain you can also have the kit
+**start with the computer**, and it **updates itself** when a newer one is out (both can be turned
+off; a git clone does neither).
+
+**One panel instead of four buttons.** GitHub, GIRAFE, Market and the version checks were four
+buttons telling a quarter of the story each. 🔗 Chain shows the four as four rows - the kit, your
+GIRAFE account, your nodes repository, the market - each with its state and one action, and the
+dialogs you know one click away.
+
 **The kit says hello.** Its regular check with GIRAFE ("am I still signed in?") now also says
 where it runs and how its chain stands: the computer's name and port, the kit's version, the
 GitHub repository of nodes and how many of them are not saved yet, whether the market is linked,

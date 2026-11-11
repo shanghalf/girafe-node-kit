@@ -30,6 +30,20 @@ function supervise() {
   const stop = () => { stopping = true; if (current) current.kill('SIGINT'); };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
+  // Update by itself, before anything is started: a kit that quietly keeps up is one less thing
+  // to remember. Only a plain zip install does it (a git clone is the developer's business), only
+  // on this person's own computer, and only once per version - a failed update is said once in
+  // the chain panel and never retried by itself (updater.autoFailed).
+  const maybeUpdate = async () => {
+    try {
+      const settings = require('./kit/settings');
+      if (!settings.all().autoUpdate) return false;
+      const r = await updater.auto();
+      if (r && r.ok) { console.log(`\n  Updating the kit from ${r.from} to ${r.to}...\n`); return true; }
+    } catch { /* offline, GitHub down, no write access: start the kit as it is */ }
+    return false;
+  };
+
   const run = (again) => {
     const args = process.argv.slice(2).filter((a) => !again || a !== '--open');
     if (again && !args.includes('--no-open')) args.push('--no-open');
@@ -48,7 +62,8 @@ function supervise() {
       process.exit(code ?? 1);
     });
   };
-  run(false);
+  // The first start checks for a newer kit; a restart after an update never does.
+  maybeUpdate().then(() => run(false));
 }
 
 function child() {

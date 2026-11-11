@@ -42,10 +42,22 @@ try {
     Remove-Item $zip -Force
     $node = $Local
   }
+  # One home for the kit (kit/install.js): unzipped in Downloads or on the Desktop, it copies
+  # itself to %USERPROFILE%\GIRAFE kit, puts a shortcut on the desktop, and runs from the copy -
+  # so there is one place to start it from, on every computer. A git clone is left where it is.
+  # Your work is never in the kit's folder (it lives in "GIRAFE kit workspace"), so nothing of
+  # yours moves. Its notes go to the console; the folder to run from is the one line of output.
+  try {
+    # Everything it prints is shown; its last line is the folder to run from.
+    $out = @(& $node (Join-Path $Kit 'kit\install.js') '--prepare' 2>&1 | ForEach-Object { "$_" })
+    if ($out.Count -gt 1) { $out[0..($out.Count - 2)] | ForEach-Object { Write-Host $_ } }
+    $home_kit = if ($out.Count) { $out[-1].Trim() } else { '' }
+    if ($home_kit -and (Test-Path (Join-Path $home_kit 'kit.js'))) { $Kit = $home_kit }
+  } catch { Say "Could not move the kit to its home folder: $($_.Exception.Message)" }
   Write-Host ''
   Say 'Starting... your browser will open. Keep this window open while you use the kit;'
   Say 'close it to stop.'
-  & $node (Join-Path $Kit 'kit.js')
+  & $node (Join-Path $Kit 'kit.js') @args
 } catch {
   Write-Host ''
   Write-Host "  Could not start: $($_.Exception.Message)" -ForegroundColor Red

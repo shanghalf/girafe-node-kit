@@ -33,6 +33,15 @@ if [ -z "$NODE" ]; then
   tar -xzf "$TGZ" -C "$RUNTIME" && rm -f "$TGZ"
   NODE=$LOCAL
 fi
+# One home for the kit (kit/install.js): unzipped in Downloads or on the Desktop, it copies
+# itself to ~/GIRAFE kit, puts a shortcut there, and runs from the copy - so there is one place
+# to start it from, on every computer. A git clone is left where it is. Your work is never in
+# the kit's folder (it lives in ~/GIRAFE kit workspace), so nothing of yours moves.
+# Its notes go to the terminal (stderr); the folder to run from is the one line of stdout.
+HOME_KIT=$("$NODE" "$KIT/kit/install.js" --prepare) || HOME_KIT=$KIT
+HOME_KIT=$(printf '%s' "$HOME_KIT" | tail -n 1)
+[ -n "$HOME_KIT" ] && [ -f "$HOME_KIT/kit.js" ] && KIT=$HOME_KIT
+
 echo; echo "  Starting... your browser will open. Keep this window open while you use the kit;"
 echo "  close it (or press Ctrl+C) to stop."
-exec "$NODE" "$KIT/kit.js"
+exec "$NODE" "$KIT/kit.js" "$@"

@@ -22,6 +22,8 @@ const compat = require('./compat');
 
 const FILE = path.join(store.ROOT, '.kit', 'girafe.json');
 const base = () => (process.env.KIT_GIRAFE_URL || 'https://girafe.live').replace(/\/$/, '');
+// How this kit calls itself in the person's GIRAFE (Settings › Node kit lists one per computer).
+const kitName = () => `GIRAFE node kit on ${os.hostname()}`.slice(0, 80);
 let pending = null; // { deviceCode, userCode, verifyUrl, expiresAt, interval, state, error }
 let timer = null;
 
@@ -54,6 +56,7 @@ function status() {
     base: base(),
     connected: !!(s && s.keyId && keys.list().some((k) => k.id === s.keyId)),
     account: s?.account || null,
+    kitName: kitName(),
     linkedAt: s?.linkedAt || null,
     pending: pending && { userCode: pending.userCode, verifyUrl: pending.verifyUrl, expiresAt: pending.expiresAt, state: pending.state, error: pending.error || null },
   };
@@ -61,7 +64,7 @@ function status() {
 
 async function connect() {
   stopPolling();
-  const r = await post('/api/kit/link/start', { kitName: `GIRAFE node kit on ${os.hostname()}`.slice(0, 80), kitVersion: KIT_VERSION }, { purpose: 'Connect to GIRAFE (start)' });
+  const r = await post('/api/kit/link/start', { kitName: kitName(), kitVersion: KIT_VERSION }, { purpose: 'Connect to GIRAFE (start)' });
   if (!r.deviceCode || !r.userCode || !r.verifyUrl) throw new Error('GIRAFE gave an unexpected answer.');
   const verify = new URL(r.verifyUrl);
   // Same site only (the host name; a local GIRAFE serves its page and its API on two ports).

@@ -1,6 +1,7 @@
 // GIRAFE node kit - the canvas, palette and panel. Plain JavaScript, no build step.
 import { createGirafePanel } from './girafe-panel.js';
 import { tasksField } from './tasks-field.js';
+import { renderChain, chainRows } from './chain.js';
 const $ = (s) => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
@@ -605,8 +606,7 @@ function field(f, value, onInput) {
 S.link = null;
 async function loadLink() {
   try { S.link = await api('/api/girafe'); } catch { S.link = null; }
-  const btn = $('#linkBtn');
-  if (btn) btn.textContent = S.link?.connected ? `☁️ ${S.link.account?.name || 'GIRAFE'}` : '☁️ Connect to GIRAFE';
+  drawChainBtn();
   if (!(document.activeElement?.matches('input, textarea, select') && $('#panel').contains(document.activeElement))) renderPanel();
 }
 S.packMsg = {};
@@ -711,8 +711,7 @@ function openLink(after) {
 S.market = null; S.listings = {}; S.marketMsg = {};
 async function loadMarket() {
   try { S.market = await api('/api/market'); } catch { S.market = null; }
-  const btn = $('#marketBtn');
-  if (btn) { btn.textContent = S.market?.connected ? '🛒 Market ✓' : '🛒 Market'; btn.title = S.market?.connected ? `Publishing as ${S.market.account?.name || ''} on ${S.market.base}` : 'Publish your nodes on the GIRAFE Market'; }
+  drawChainBtn();
 }
 // Under "Share this node": submit it (or its pack) for review on the market, with its market/ folder.
 function marketBox(id, kind, name, version) {
@@ -1104,6 +1103,51 @@ async function loadCompat(force) {
   if (last && !last.seen && last.at && Date.now() - Date.parse(last.at) < 5 * 60_000 && !S.lastShown) { S.lastShown = true; flash(last.ok ? `✓ Updated from kit ${last.from} to ${last.to}` : `⚠️ ${last.error}`); }
   if (!$('#panel').contains(document.activeElement)) renderPanel();
 }
+// ---------- the chain: kit → GIRAFE → your nodes on GitHub → the market (web/chain.js) ----------
+S.settings = {};
+async function loadKitSettings() {
+  try { S.settings = await api('/api/kit-settings'); } catch { S.settings = {}; }
+  drawChainBtn();
+}
+// One button for the four: its dot is the worst of the four rows, so a glance says whether
+// anything in the chain needs a hand.
+function drawChainBtn() {
+  const btn = $('#chainBtn');
+  if (!btn) return;
+  const rows = chainRows(S);
+  const worst = rows.some((r) => r.tone === 'bad') ? 'bad' : rows.some((r) => r.tone === 'warn') ? 'warn' : rows.every((r) => r.tone === 'ok') ? 'ok' : 'off';
+  const todo = rows.filter((r) => r.tone === 'warn' || r.tone === 'bad').length;
+  btn.textContent = `🔗 Chain${todo ? ` · ${todo}` : ''}`;
+  btn.className = 'chain-btn chain-btn-' + worst;
+  btn.title = rows.map((r) => `${r.title}: ${r.state}`).join('\n');
+}
+function openChain() {
+  let close = () => {};
+  const draw = () => {
+    close = dialog('🔗 The chain', ...renderChain({
+      el,
+      S,
+      act: (key) => {
+        if (key === 'update') { close(); return openVersions(); }
+        if (key === 'versions') { close(); return openVersions(); }
+        if (key === 'align') { close(); return openAlign(); }
+        if (key === 'signin') { close(); return openLink(); }
+        if (key === 'leave') { close(); return openLeave(); }
+        if (key === 'github') { close(); return openGitHub(); }
+        if (key === 'market') { close(); return openMarket(); }
+        return undefined;
+      },
+      toggle: async (key, on) => {
+        try { S.settings = await api('/api/kit-settings', { method: 'POST', body: JSON.stringify({ [key]: on }) }); }
+        catch (e) { flash('⚠️ ' + e.message); }
+        if (S.settings.autostartError) flash('⚠️ ' + S.settings.autostartError);
+        drawChainBtn(); draw();
+      },
+    }), el('div', { class: 'caps', text: 'Your nodes and keys are not in the kit\'s folder: they live in your home folder, so an update or a new download never loses them.' }));
+  };
+  draw();
+  Promise.all([loadKitSettings(), loadCompat(true), loadGitHub({ remote: true })]).then(draw, () => draw());
+}
 function openVersions() {
   let close = () => {};
   const draw = (note) => {
@@ -1307,13 +1351,12 @@ function openLeave() {
   $('#fitBtn').addEventListener('click', fit);
   $('#keysBtn').addEventListener('click', openKeys);
   await loadKeys();
-  $('#linkBtn').addEventListener('click', () => openLink());
+  $('#chainBtn').addEventListener('click', () => openChain());
   $('#leaveBtn').addEventListener('click', () => openLeave());
   if (ses.required) $('#leaveBtn').hidden = false; else $('#leaveBtn').hidden = true;
   await loadLink();
-  $('#marketBtn').addEventListener('click', () => openMarket());
   await loadMarket();
-  $('#ghBtn').addEventListener('click', () => openGitHub());
+  await loadKitSettings();
   await loadGitHub();
   setInterval(() => loadGitHub(), 5000);
   setInterval(() => { if (S.gh?.connected && !document.hidden) loadGitHub({ remote: true }); }, 120000);
@@ -1347,10 +1390,7 @@ const ghNode = (id) => (S.gh?.connected ? S.gh.nodes?.[id] || null : null);
 let ghLast = '';
 async function loadGitHub({ remote = false } = {}) {
   try { S.gh = await api('/api/github' + (remote ? '?remote=1' : '')); } catch { return; }
-  const btn = $('#ghBtn');
-  const n = S.gh.connected ? Object.values(S.gh.nodes).filter((x) => ['changed', 'behind', 'conflict', 'deleted'].includes(x.state)).length : 0;
-  btn.replaceChildren(ghMark(), ' ' + (S.gh.connected ? `${S.gh.repo}${n ? ' · ' + n : ''}` : 'GitHub'));
-  btn.classList.toggle('gh-pending', n > 0);
+  drawChainBtn();
   const sig = JSON.stringify(S.gh);
   if (sig !== ghLast) { ghLast = sig; renderPalette(); }
 }

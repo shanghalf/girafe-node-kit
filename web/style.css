@@ -247,3 +247,22 @@ button.big { min-height: 44px; font-size: 15px; }
 /* A button that reads as part of a sentence (the "open it" next to a folder path). */
 .linkish { background: none; border: 0; padding: 0; color: var(--accent, #6fb3ff); cursor: pointer; font: inherit; text-decoration: underline; }
 .linkish:hover { filter: brightness(1.2); }
+
+/* The chain (web/chain.js): one row per piece - kit, GIRAFE account, your nodes repository,
+   the market - each with its state and at most one action. */
+.chain-btn-warn { border-color: #8a6d1f; color: #e8c874; }
+.chain-btn-bad { border-color: #7d3030; color: #e89a9a; }
+.chain-btn-ok { border-color: #2f6b45; }
+.chain-row { border: 1px solid #2a2f38; border-left-width: 3px; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: #15181e; }
+.chain-row.chain-ok { border-left-color: #3d9a63; }
+.chain-row.chain-warn { border-left-color: #c9a227; }
+.chain-row.chain-bad { border-left-color: #c14a4a; }
+.chain-row.chain-off { border-left-color: #454b56; }
+.chain-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.chain-icon { font-size: 15px; }
+.chain-state { margin-left: auto; color: #aeb6c2; font-size: 13px; }
+.chain-line { color: #9aa3b0; font-size: 13px; margin-top: 4px; line-height: 1.45; }
+.chain-toggles { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; }
+.chain-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #c6cdd8; cursor: pointer; }
+.chain-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chain-actions:empty { display: none; }

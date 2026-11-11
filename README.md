@@ -13,11 +13,17 @@ real ones, run the graph and see what happens, with nothing sent anywhere.
 3. Your browser opens on the kit. **Sign in with your GIRAFE account** (one Allow on girafe.live)
    and say whose computer it is. Then press **Run** on the example graph.
 
+**It only has to be found once.** That first start copies the kit into one place -
+`C:\Users\<you>\GIRAFE kit`, `/Users/<you>/GIRAFE kit`, `~/GIRAFE kit` - puts a **GIRAFE kit**
+shortcut on your desktop, and runs from there. Start it from the shortcut afterwards; the folder
+you unzipped can be deleted. In 🔗 Chain you can also have it **start with the computer**, so it is
+simply always there. (A `git clone` is left exactly where it is.)
+
 The first start downloads a private copy of Node.js (about 30 MB) into the kit's folder and
 checks it against nodejs.org's published checksum. If your computer already has Node 22 or
-newer, it uses that instead. Nothing is installed on the computer: everything the kit keeps
-is in its folder. Keep the small window open while you use the kit; close it to stop. To
-remove the kit, delete the folder.
+newer, it uses that instead. Nothing is installed on the computer. Keep the small window open
+while you use the kit; close it to stop. To remove the kit, delete its folder - your nodes and
+keys are not in it (see below).
 
 Developers: `node kit.js` does the same with your own Node 22+.
 

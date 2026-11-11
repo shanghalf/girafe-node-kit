@@ -166,6 +166,32 @@ async function start({ root = ROOT } = {}) {
   } finally { busy = false; }
 }
 
+// Update by itself, on start, before any kit is running (kit.js). Nothing is thrown: a computer
+// with no internet, a GitHub that is down or a folder it cannot write to must still start the kit
+// it has. A version that failed once is written down and never tried again by itself - the person
+// can still press "Update the kit", which is updater.start() and says what went wrong.
+const AUTO_FAILED = () => path.join(dir(), 'auto-failed.json');
+function autoFailed() { return readJson(AUTO_FAILED()) || null; }
+async function auto({ root = ROOT } = {}) {
+  const how = await method(root);
+  if (how.mode !== 'zip' || !how.ready) return null;          // a git clone updates itself the git way
+  if (readJson(PENDING())) return null;                       // an update is already waiting
+  const g = await compat.girafe({});
+  const known = g.hostApis ? g : g.last;
+  const latest = await compat.latest({ force: true, repo: known?.kit?.repo, branch: known?.kit?.branch });
+  if (!latest.version || compat.cmp(latest.version, KIT_VERSION) <= 0) return null;
+  const failed = autoFailed();
+  if (failed && failed.version === latest.version) return null;
+  try {
+    const to = await viaZip(root, latest);
+    fs.rmSync(AUTO_FAILED(), { force: true });
+    return { ok: true, from: KIT_VERSION, to };
+  } catch (e) {
+    writeJson(AUTO_FAILED(), { version: latest.version, error: e.message, at: new Date().toISOString() });
+    return { ok: false, version: latest.version, error: e.message };
+  }
+}
+
 // The new version is up: keep it, tidy old backups (the two newest stay).
 // An update started by a kit before 0.9.0 wrote pending.json in the kit's own workspace/ folder
 // (the watcher still running reads it there): confirm that one too, or a later crash would roll back.
@@ -198,4 +224,4 @@ async function rollback() {
   return { ...p, error };
 }
 
-module.exports = { method, info, start, confirm, rollback, unpack, restartSoon, RESTART_CODE, KEEP };
+module.exports = { method, info, start, auto, autoFailed, confirm, rollback, unpack, restartSoon, RESTART_CODE, KEEP };

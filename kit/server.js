@@ -18,6 +18,8 @@ const market = require('./market-link');
 const packs = require('./packs');
 const compat = require('./compat');
 const updater = require('./updater');
+const settings = require('./settings');
+const install = require('./install');
 const nodeRuns = require('./node-runs');
 const github = require('./github');
 const home = require('./home');
@@ -145,6 +147,16 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === '/api/update') {
     try { return send(res, 200, await updater.start()); }
     catch (e) { return send(res, e.code === 'cannot-update' ? 409 : 502, { error: e.message, code: e.code || null }); }
+  }
+  // The kit's own settings: start with the computer, update by itself (kit/settings.js). The
+  // chain panel's row 1 and row 2 read and write them.
+  if (p === '/api/kit-settings') {
+    if (req.method === 'GET') return send(res, 200, { ...settings.all(), installedAt: install.plan().target, kitDir: path.join(__dirname, '..'), mode: (await updater.method()).mode });
+    if (req.method === 'POST') {
+      const b = await readJson(req).catch(() => ({}));
+      try { return send(res, 200, settings.set(b)); }
+      catch (e) { return send(res, 502, { error: e.message }); }
+    }
   }
   // display "runs" (host API 2): what a node kept over its last runs.
   if ((k = m(/^\/api\/node-runs\/([A-Za-z0-9_-]{1,64})$/))) {
