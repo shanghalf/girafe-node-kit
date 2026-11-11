@@ -65,11 +65,16 @@ contract. How the kit works inside, keys included: `docs.html` (open it, or 📖
 
 ## Keep your nodes on GitHub
 
-**GitHub** at the top saves your nodes to a private repo of yours: every save is a version you
-can go back to, and your other computer can get them. You make an empty private repo and a token
-for that repo only (the kit shows you how), and paste the token once in **🔑 Keys**. A node with
-changes not saved pulses under **Your nodes**; right-click it to save, see your changes, get
-GitHub's version or go back in its history. Only your node folders are uploaded, never your keys.
+🔗 **Chain** saves your nodes to a private repo of yours: every save is a version you can go back
+to, and your other computer can get them. You make an empty private repo and a token for that repo
+only (the kit shows you how), and paste the token once in **🔑 Keys**. A node with changes not
+saved pulses under **Your nodes**; right-click it to save, see your changes, get GitHub's version
+or go back in its history. Only your node folders are uploaded, never your keys.
+
+**Set it up once, for every computer.** In GIRAFE, Settings › Node kit, name your repository, and
+in the Key bank tick **give it to my kits** on your GitHub key. Every kit you link afterwards is
+handed both when it says hello, connects itself to the repository and shows you the nodes waiting
+on GitHub - nothing to paste again. The key is handed to a kit once, the first time it links.
 
 ## Keys (Prompt and Generate image)
 

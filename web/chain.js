@@ -71,10 +71,13 @@ export function chainRows(S) {
     title: 'Your nodes repository',
     tone: !gh.connected ? 'off' : dirty ? 'warn' : 'ok',
     state: gh.connected ? `${gh.owner}/${gh.repo}` : 'Not set up',
-    lines: gh.connected
+    lines: (gh.connected
       ? [`${states.length} node${states.length === 1 ? '' : 's'}${dirty ? `, ${dirty} not saved yet` : ', all saved'}${behind ? `, ${behind} newer on GitHub` : ''}.`,
         'This is where your nodes live between computers - the kit itself is replaced by every update.']
-      : ['Without it, the nodes you build are only on this computer. A private repository and a token are enough.'],
+      : ['Without it, the nodes you build are only on this computer. A private repository and a token are enough.',
+        'Name it once in your GIRAFE (Settings › Node kit) and mark its key in the Key bank: every kit you link then sets itself up.'])
+      // What the GIRAFE profile did on this computer, if anything (session.applyProfile).
+      .concat(S.session?.profileNote ? [S.session.profileNote] : []),
     actions: [{ key: 'github', label: gh.connected ? '📁 Open GitHub' : '📁 Set it up', primary: !gh.connected }],
   });
 
