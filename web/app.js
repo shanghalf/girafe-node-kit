@@ -1134,6 +1134,12 @@ function openVersions() {
 // ONE BUTTON. The kit asks GIRAFE what it really runs, re-checks every node against that answer,
 // and (when asked) sends the node you were last editing - raising its version if GIRAFE has it
 // already. Nothing in a manifest is rewritten to make a check pass; what is really left is listed.
+// This computer's own file manager, opened by the kit itself (a web page cannot do it).
+async function openFolder(which) {
+  try { const r = await api('/api/open-folder', { method: 'POST', body: JSON.stringify({ which }) }); flash(`📂 Opened ${r.folder}`); }
+  catch (e) { flash(`⚠️ Couldn't open the folder: ${e.message}`); }
+}
+
 S.align = null;
 function openAlign(id = null) {
   let close = () => {};
@@ -1283,7 +1289,13 @@ function openLeave() {
   S.info = await api('/api/info');
   $('#versionBadge').textContent = `GIRAFE ${S.info.girafe} (simulated) · host API ${S.info.hostApi}`;
   $('#versionBadge').title = `The GIRAFE this kit pretends to be. Kit ${S.info.kit}. Plugins must name host API ${S.info.hostApi}.`;
-  $('#palHint').replaceChildren('Your nodes live in ', el('code', { text: S.info.workspace + (S.info.workspace.includes('\\') ? '\\' : '/') + 'nodes' }), '. Changes are picked up on the next run. Kit updates and new downloads never touch this folder.');
+  const sep = S.info.workspace.includes('\\') ? '\\' : '/';
+  $('#palHint').replaceChildren('Your nodes live in ', el('code', { text: S.info.workspace + sep + 'nodes' }),
+    ' ', el('button', { class: 'linkish', text: '📂 open it', title: 'Open this folder in your file manager', onclick: () => openFolder('workspace') }),
+    '. Changes are picked up on the next run. Kit updates and new downloads never touch this folder.');
+  // GIRAFE's "Open the kit" sends ?folder=workspace|kit: do it as soon as the page is up, and say so.
+  const wanted = new URL(location.href).searchParams.get('folder');
+  if (wanted === 'workspace' || wanted === 'kit') { openFolder(wanted); history.replaceState(null, '', location.pathname); }
   await loadKinds();
   initCanvas();
   checkWorkspace();

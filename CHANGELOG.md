@@ -3,6 +3,23 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.13.1 (2026-11-11)
+
+**GIRAFE's "Open the kit" button stops firing blind.** From a fresh download nothing is running
+yet, and the button simply led to "This site can't be reached" with no explanation. Your own GIRAFE
+— and only it — may now read `GET /api/info` and `GET /api/compat` across origins, so its button
+can say whether the kit answers, which version it is, which folder it runs from, and whether that
+is the newest pull from GitHub, before opening anything. Nothing else is shared cross-origin, and
+nothing cross-origin may write: the same-origin rule on every POST is untouched.
+
+`/api/info` now also carries `kitFolder`, `signedIn` and the newest kit it has already heard of
+(from the cache, so answering stays instant).
+
+**📂 open it, next to the folder path.** A web page cannot open a file manager, so the kit does it
+itself: `POST /api/open-folder` (its own page only) opens your workspace or the kit folder with
+`explorer.exe` / `open` / `xdg-open`. GIRAFE's dialog reaches it by opening the kit's page with
+`?folder=workspace`.
+
 ## 0.13.0 (2026-11-11)
 
 **One button: "Align with GIRAFE".** Versions used to drift apart on their own - the kit shipped

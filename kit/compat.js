@@ -25,6 +25,8 @@ const DEFAULT_REPO = 'shanghalf/girafe-node-kit';
 const DEFAULT_BRANCH = 'release';
 
 const girafeBase = () => (process.env.KIT_GIRAFE_URL || 'https://girafe.live').replace(/\/$/, '');
+// The one page allowed to read /api/info and /api/compat across origins: this kit's own GIRAFE.
+const girafeOrigin = () => { try { return new URL(girafeBase()).origin; } catch { return null; } };
 // Where updates come from: the release branch on GitHub. KIT_UPDATE_URL points tests at a fake
 // that serves <base>/package.json and <base>/kit.zip.
 function updateSource(repo = DEFAULT_REPO, branch = DEFAULT_BRANCH) {
@@ -130,6 +132,12 @@ async function gitLatest(branch) {
   netguard.note({ host: 'git remote', path: `${remote}/${branch}`, purpose: 'Check for a newer kit (git fetch)', result: 'started by the kit (git)' });
   await runGit(['fetch', '--quiet', remote, `refs/heads/${branch}`]);
   return JSON.parse(await runGit(['show', 'FETCH_HEAD:package.json'], 10_000));
+}
+
+// The newest kit this kit has already heard of, with no network call (for a fast /api/info).
+function lastLatest() {
+  const f = readFile();
+  return f.latest && isVer(f.latest.version) ? { version: f.latest.version, at: f.latest.at } : {};
 }
 
 // The last thing GIRAFE said about itself, with no network call - what every local check should
@@ -263,4 +271,4 @@ function remember(compat) {
   if (compat && isVer(compat.girafeVersion)) save({ girafe: { base: girafeBase(), at: Date.now(), girafeVersion: compat.girafeVersion, hostApi: Number(compat.hostApi), hostApis: (compat.hostApis || []).map(Number), minKit: compat.minKit, keyServices: compat.keyServices || null, packs: Number(compat.packs) || 0, billing: Number(compat.billing) || 0, tasks: Number(compat.tasks) || 0, kit: compat.kit || null } });
 }
 
-module.exports = { status, girafe, known, align, latest, checkNode, beforeSend, beforeSendPack, remember, updateSource, cmp, nodeOk, isVer, _reset: () => { mem = null; } };
+module.exports = { status, girafe, known, align, girafeOrigin, lastLatest, latest, checkNode, beforeSend, beforeSendPack, remember, updateSource, cmp, nodeOk, isVer, _reset: () => { mem = null; } };

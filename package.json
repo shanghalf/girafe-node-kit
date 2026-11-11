@@ -1,6 +1,6 @@
 {
   "name": "girafe-node-kit",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Build GIRAFE nodes as plugins, locally: a simulated GIRAFE canvas, core nodes and a sandbox. No dependencies.",
   "license": "MIT",
   "bin": { "girafe-node-kit": "kit.js" },

@@ -67,6 +67,16 @@ async function handle(req, res) {
   // A page from another site must not drive the kit: only same-origin requests write.
   if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'cross-site request refused' });
 
+  // Your own GIRAFE - and only it - may READ these two, so its "Open the kit" button can say
+  // whether the kit is running, which version, and from which folder, instead of firing a link
+  // blind and leaving the browser to say "this site can't be reached". Nothing else is shared
+  // cross-origin, and nothing cross-origin may write (the rule just above still holds).
+  if (['/api/info', '/api/compat'].includes(p) && req.headers.origin && req.headers.origin === compat.girafeOrigin()) {
+    res.setHeader('access-control-allow-origin', req.headers.origin);
+    res.setHeader('vary', 'Origin');
+  }
+  if (req.method === 'OPTIONS') { res.writeHead(204, { allow: 'GET, POST, OPTIONS' }); return res.end(); }
+
   // Signing in (kit/session.js): until the kit is signed in with GIRAFE, only these answer.
   if (req.method === 'GET' && p === '/api/session') return send(res, 200, session.status());
   if (req.method === 'POST' && p === '/api/session/signin') {
@@ -83,7 +93,29 @@ async function handle(req, res) {
     catch (e) { return send(res, 500, { error: e.message }); }
   }
 
-  if (req.method === 'GET' && p === '/api/info') return send(res, 200, { kit: version.KIT_VERSION, girafe: version.GIRAFE_VERSION, hostApi: version.HOST_API, workspace: store.ROOT, workspaceMode: home.resolve().mode, migratedFrom: home.resolve().migratedFrom });
+  if (req.method === 'GET' && p === '/api/info') {
+    // `kitFolder` and `latest` are here so GIRAFE's "Open the kit" can say, without a second call,
+    // which folder is running and whether it is the newest pull from GitHub. `latest` is whatever
+    // was last read (kit/compat.js's cache): answering must stay instant, so nothing is fetched.
+    const seen = compat.lastLatest();
+    return send(res, 200, { kit: version.KIT_VERSION, girafe: version.GIRAFE_VERSION, hostApi: version.HOST_API, workspace: store.ROOT, workspaceMode: home.resolve().mode, migratedFrom: home.resolve().migratedFrom,
+      kitFolder: path.join(__dirname, '..'), signedIn: session.status().signedIn, latest: seen.version || null, latestAt: seen.at || null, updateAvailable: !!(seen.version && plugins.cmpVersion(seen.version, version.KIT_VERSION) > 0) });
+  }
+  // Open a folder in this computer's own file manager. Same-origin only (the cross-site rule
+  // above): GIRAFE can't call it, it opens the kit's page with ?folder=… and the page asks.
+  if (req.method === 'POST' && p === '/api/open-folder') {
+    try {
+      const b = await readJson(req).catch(() => ({}));
+      const dir = b.which === 'kit' ? path.join(__dirname, '..') : store.ROOT;
+      if (!fs.existsSync(dir)) return send(res, 404, { error: `${dir} is not there any more.` });
+      const cmd = process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+      // The path is an argument, never part of a command line, and nothing waits on the window.
+      const child = require('child_process').spawn(cmd, [dir], { detached: true, stdio: 'ignore', windowsHide: false });
+      child.on('error', () => {}); // no file manager (a server, a bare container): nothing to do
+      child.unref();
+      return send(res, 200, { ok: true, folder: dir });
+    } catch (e) { return send(res, 500, { error: e.message }); }
+  }
   // Your work in one home folder (kit/home.js); other kit folders still holding work can be brought here.
   if (req.method === 'GET' && p === '/api/workspace') return send(res, 200, { root: store.ROOT, mode: home.resolve().mode, others: home.findOtherKits() });
   if (req.method === 'POST' && p === '/api/workspace/import') {

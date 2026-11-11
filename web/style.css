@@ -244,3 +244,6 @@ button.big { min-height: 44px; font-size: 15px; }
 @keyframes signin-in { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes signin-float { 50% { transform: translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .signin-card, .signin-logo { animation: none; } .signin-choice { transition: none; } }
+/* A button that reads as part of a sentence (the "open it" next to a folder path). */
+.linkish { background: none; border: 0; padding: 0; color: var(--accent, #6fb3ff); cursor: pointer; font: inherit; text-decoration: underline; }
+.linkish:hover { filter: brightness(1.2); }

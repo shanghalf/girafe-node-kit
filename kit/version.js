@@ -1,7 +1,7 @@
 // What this kit pretends to be. GIRAFE moves on; when it does, these numbers move with it
 // and the kit tells plugin authors what changed (see CHANGELOG.md).
 module.exports = {
-  KIT_VERSION: '0.13.0',
+  KIT_VERSION: '0.13.1',
   // The GIRAFE release this kit simulates. Plugins declare the oldest one they work with.
   GIRAFE_VERSION: '0.91.0',
   // The host API version: the contract between GIRAFE and a plugin node.
