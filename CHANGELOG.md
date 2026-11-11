@@ -3,6 +3,19 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.14.0 (2026-11-11)
+
+**The kit says hello.** Its regular check with GIRAFE ("am I still signed in?") now also says
+where it runs and how its chain stands: the computer's name and port, the kit's version, the
+GitHub repository of nodes and how many of them are not saved yet, whether the market is linked,
+and the packs and nodes held here with their versions. GIRAFE shows that in Settings › Node kit,
+so from any computer you can see which of your computers is running what - something no web page
+can find out by itself. Nothing private is in it: no key, no path, no node contents, and the
+GitHub state is read from disk, never over the network.
+
+Nothing to do for plugin authors. A GIRAFE from before this answers 404 and the kit quietly asks
+the old way, so an older site keeps working.
+
 ## 0.13.1 (2026-11-11)
 
 **GIRAFE's "Open the kit" button stops firing blind.** From a fresh download nothing is running

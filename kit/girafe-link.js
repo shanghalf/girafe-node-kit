@@ -121,6 +121,27 @@ async function whoami() {
   return data;
 }
 
+// The same question as whoami, with news: where this kit runs and what state its own chain is in
+// (GIRAFE 0.92.0, POST /api/kit/hello). GIRAFE can't reach a computer, so this is how Settings ›
+// Node kit can show the chain of every computer you work on. Nothing private goes in it: the
+// computer's name, the port, the nodes repository's name and how many nodes are unsaved, whether
+// the market is linked - never a key, a path or a node's contents. A GIRAFE from before it
+// answers 404, and the kit falls back to /api/kit/me, so an older site keeps working.
+async function hello(report) {
+  const s = read();
+  if (!s?.keyId) throw Object.assign(new Error('Not signed in.'), { status: 401 });
+  const t = keys.use(s.keyId, 'girafe');
+  let data;
+  try {
+    data = await post('/api/kit/hello', report || {}, { token: t.value, purpose: 'Tell GIRAFE what this computer is running' });
+  } catch (e) {
+    if (e.status === 404) return whoami(); // a GIRAFE from before the hello: ask the old way
+    throw e;
+  }
+  if (data.account) write({ ...s, account: data.account });
+  return data;
+}
+
 // Drop the link on this computer without asking GIRAFE (it already refused it).
 async function forget() {
   stopPolling(); pending = null;
@@ -191,4 +212,4 @@ async function sendPack(packId) {
   }
 }
 
-module.exports = { status, connect, disconnect, send, sendPack, raiseVersion, base, whoami, forget };
+module.exports = { status, connect, disconnect, send, sendPack, raiseVersion, base, whoami, hello, forget };

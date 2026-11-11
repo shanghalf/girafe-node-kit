@@ -115,6 +115,23 @@ function verify(pkg) {
 //     author: { publicKey }, signature (over hash), packedAt, kit }
 const packCanonical = (packSha, nodes) => [`pack.json ${packSha}\n`, ...nodes.map((n) => `node:${n.id} ${n.hash}\n`)].sort().join('');
 
+// The same hash a .gnode / .gpack would carry, without building one: the Ship panel and the hello
+// report compare "what is here" with "what GIRAFE and the market hold" every few minutes, and a
+// full package (every file base64-encoded in memory) is far too much work for a comparison.
+function hashNode(id) {
+  const dir = path.join(store.NODES, id);
+  const files = {};
+  for (const n of listFiles(dir)) files[n] = { sha256: sha(fs.readFileSync(path.join(dir, n))) };
+  return sha(canonical(files));
+}
+function hashPack(packId) {
+  const packs = require('./packs');
+  const p = packs.getPack(packId);
+  if (!p) throw new Error(`No pack "${packId}" in workspace/nodes.`);
+  const packSha = sha(fs.readFileSync(path.join(store.NODES, packId, packs.PACK_FILE)));
+  return sha(packCanonical(packSha, p.nodes.map((id) => ({ id, hash: hashNode(id) }))));
+}
+
 function packPack(packId) {
   const packs = require('./packs');
   const p = packs.getPack(packId);
@@ -165,4 +182,4 @@ function verifyPack(pkg) {
 
 const packageFile = (name) => (/^[a-z0-9-]+-\d+\.\d+\.\d+\.g(node|pack)$/.test(name) ? path.join(OUT, name) : null);
 
-module.exports = { pack, verify, packPack, verifyPack, packageFile, authorKey };
+module.exports = { pack, verify, packPack, verifyPack, packageFile, authorKey, hashNode, hashPack };

@@ -11,9 +11,11 @@
 // Nothing of yours is erased while a node of yours is not saved on GitHub: the kit keeps it,
 // says so, and tries again later.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const store = require('./store');
 const link = require('./girafe-link');
+const { KIT_VERSION, HOST_API } = require('./version');
 
 const FILE = path.join(store.ROOT, '.kit', 'session.json');
 const IDLE_MS = Number(process.env.KIT_IDLE_MS) || 5 * 60_000; // tests shorten it
@@ -56,11 +58,65 @@ async function signIn(trust) {
 // The page says it is open (every 30 s).
 function beat() { const s = read(); s.beatAt = Date.now(); write(s); return { ok: true }; }
 
-// Is the link still accepted? A 401 means it was cut (Settings › Connected kits): signed out.
+// What this computer tells GIRAFE about itself on every check (POST /api/kit/hello): which
+// computer and port, which kit, the nodes repository and how much of it is not saved, the market,
+// and the packs and nodes held here with their versions. It is what Settings › Node kit shows
+// about a computer GIRAFE cannot reach. Nothing private: no key, no path, no node contents - and
+// the GitHub state is read from what is already on disk, never over the network, so a check stays
+// instant. Anything that fails is simply left out.
+let servingPort = null;
+const servedOn = (port) => { servingPort = Number(port) || null; };
+
+async function chainReport() {
+  const r = { hostname: os.hostname(), port: servingPort, kitVersion: KIT_VERSION, hostApi: HOST_API, autostart: false, github: null, market: null, packs: [] };
+  try {
+    const g = await require('./github').status(); // no { remote: true }: nothing over the network here
+    if (g.connected) {
+      const states = Object.values(g.nodes || {});
+      r.github = { repo: `${g.owner}/${g.repo}`, nodes: states.length, changed: states.filter((n) => n.state !== 'clean').length };
+    }
+  } catch { /* GitHub not set up here */ }
+  try {
+    const m = require('./market-link').status();
+    r.market = { linked: !!m.connected, account: m.account?.name || m.account?.email || null };
+  } catch { /* not linked */ }
+  try { r.packs = heldHere(); } catch { /* nothing to say */ }
+  return r;
+}
+
+// Every pack and loose node this computer holds, with its version and the hash a package of it
+// would carry - what the Ship panel compares against what GIRAFE and the market hold.
+function heldHere() {
+  const pkgs = require('./package');
+  const packs = require('./packs');
+  const out = [];
+  const inPack = new Set();
+  for (const id of packs.packDirs()) {
+    try {
+      const p = packs.getPack(id);
+      if (!p) continue;
+      for (const n of p.nodes || []) inPack.add(n);
+      out.push({ id, kind: 'pack', version: p.version || null, hash: safe(() => pkgs.hashPack(id)) });
+    } catch { /* a pack being edited */ }
+  }
+  for (const d of fs.readdirSync(store.NODES, { withFileTypes: true })) {
+    if (!d.isDirectory() || !store.ID_RE.test(d.name) || inPack.has(d.name) || packs.isPackDir(d.name)) continue;
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(store.NODES, d.name, 'manifest.json'), 'utf8'));
+      out.push({ id: m.id || d.name, kind: 'node', version: m.version || null, hash: safe(() => pkgs.hashNode(d.name)) });
+    } catch { /* not a node yet */ }
+  }
+  return out;
+}
+const safe = (fn) => { try { return fn(); } catch { return null; } };
+
+// Is the link still accepted? A 401 means it was cut (Settings › Node kit): signed out. The same
+// call tells GIRAFE what this computer is running (hello); a GIRAFE from before that falls back
+// to the plain question by itself.
 async function check() {
   if (open() || !link.status().connected) return status();
   try {
-    await link.whoami();
+    await link.hello(await chainReport());
     last = { checkedAt: Date.now(), ok: true, error: null };
   } catch (e) {
     if (e.status === 401) { await link.forget(); note = 'You were signed out from GIRAFE (the link was cut, or the account changed).'; }
@@ -144,4 +200,4 @@ function startTimers() {
   setInterval(() => { idleCheck().catch(() => {}); }, 60_000).unref();
 }
 
-module.exports = { status, signIn, beat, check, leave, unsaved, saveAll, idleCheck, startTimers, eraseAll, IDLE_MS };
+module.exports = { status, signIn, beat, check, leave, unsaved, saveAll, idleCheck, startTimers, eraseAll, chainReport, servedOn, IDLE_MS };

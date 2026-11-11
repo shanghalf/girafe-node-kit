@@ -98,8 +98,13 @@ async function handle(req, res) {
     // which folder is running and whether it is the newest pull from GitHub. `latest` is whatever
     // was last read (kit/compat.js's cache): answering must stay instant, so nothing is fetched.
     const seen = compat.lastLatest();
+    // `account` lets GIRAFE's "Open the kit" say whether this kit is signed in as the person
+    // reading the page or as somebody else. Only a GIRAFE origin can read any of this (the CORS
+    // rule at the top of handle), and it is an address, nothing more.
+    const who = session.status().account || null;
     return send(res, 200, { kit: version.KIT_VERSION, girafe: version.GIRAFE_VERSION, hostApi: version.HOST_API, workspace: store.ROOT, workspaceMode: home.resolve().mode, migratedFrom: home.resolve().migratedFrom,
-      kitFolder: path.join(__dirname, '..'), signedIn: session.status().signedIn, latest: seen.version || null, latestAt: seen.at || null, updateAvailable: !!(seen.version && plugins.cmpVersion(seen.version, version.KIT_VERSION) > 0) });
+      kitFolder: path.join(__dirname, '..'), signedIn: session.status().signedIn, account: who ? { email: who.email || null, name: who.name || null } : null,
+      latest: seen.version || null, latestAt: seen.at || null, updateAvailable: !!(seen.version && plugins.cmpVersion(seen.version, version.KIT_VERSION) > 0) });
   }
   // Open a folder in this computer's own file manager. Same-origin only (the cross-site rule
   // above): GIRAFE can't call it, it opens the kit's page with ?folder=… and the page asks.
@@ -326,7 +331,11 @@ function start({ port = 4747, host = '127.0.0.1' } = {}) {
     });
     const tryListen = (p, left) => {
       server.once('error', (e) => (e.code === 'EADDRINUSE' && left > 0 ? tryListen(p + 1, left - 1) : reject(e)));
-      server.listen(p, host, () => resolve({ server, url: `http://${host === '127.0.0.1' ? 'localhost' : host}:${server.address().port}/` }));
+      server.listen(p, host, () => {
+        // The port is part of what the kit tells GIRAFE about this computer (session.chainReport).
+        session.servedOn(server.address().port);
+        resolve({ server, url: `http://${host === '127.0.0.1' ? 'localhost' : host}:${server.address().port}/` });
+      });
     };
     tryListen(port, 10);
   });

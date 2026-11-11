@@ -15,6 +15,8 @@ fs.mkdirSync(path.join(WS, 'nodes'), { recursive: true });
 
 const TOKEN = 'gk_live_FAKE_SESSION_TOKEN_12345';
 let revoked = false;
+let helloSeen = null;      // the last report a hello carried
+let helloKnown = true;     // false = a GIRAFE from before the hello route
 const fake = http.createServer((req, res) => {
   let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
     const send = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -22,6 +24,11 @@ const fake = http.createServer((req, res) => {
     if (req.url === '/api/kit/link/poll') return send(200, { status: 'approved', token: TOKEN, account: { name: 'Alf', email: 'alf@example.com' } });
     if (req.headers.authorization !== `Bearer ${TOKEN}` || revoked) return send(401, { error: 'not linked' });
     if (req.url === '/api/kit/me') return send(200, { account: { name: 'Alf', email: 'alf@example.com' } });
+    if (req.url === '/api/kit/hello') {
+      if (!helloKnown) return send(404, { error: 'no such route' });
+      try { helloSeen = JSON.parse(b || '{}'); } catch { helloSeen = null; }
+      return send(200, { account: { name: 'Alf', email: 'alf@example.com' }, compat: { girafeVersion: '0.92.0', minKit: '0.4.0', hostApis: [0, 1, 2] } });
+    }
     if (req.url === '/api/kit/link/revoke') return send(200, { ok: true });
     send(404, { error: 'no' });
   });
@@ -95,4 +102,40 @@ test('my computer: an idle page changes nothing', async () => {
   await session.idleCheck();
   assert.ok(fs.existsSync(path.join(WS, 'nodes', 'kept')));
   assert.equal((await call('GET', '/api/session')).data.signedIn, true);
+});
+
+// ---- the hello report: what this computer tells GIRAFE about itself (kit 0.14.0) ----
+test('a check tells GIRAFE what this computer is running', async () => {
+  revoked = false; helloKnown = true; helloSeen = null;
+  await call('POST', '/api/session/signin', { trust: 'mine' });
+  assert.ok(await until(async () => (await call('GET', '/api/session')).data.signedIn));
+  assert.equal((await call('POST', '/api/session/check')).data.signedIn, true);
+  assert.ok(helloSeen, 'the check went through /api/kit/hello');
+  assert.equal(helloSeen.hostname, os.hostname());
+  assert.equal(helloSeen.port, server.address().port);
+  assert.equal(helloSeen.kitVersion, require('../kit/version').KIT_VERSION);
+  assert.equal(helloSeen.hostApi, require('../kit/version').HOST_API);
+  assert.equal(helloSeen.github, null, 'GitHub is not set up in this workspace');
+  assert.equal(helloSeen.market.linked, false);
+  assert.ok(Array.isArray(helloSeen.packs));
+  // Nothing private: no key, no path, no node contents.
+  const text = JSON.stringify(helloSeen);
+  assert.ok(!text.includes(TOKEN));
+  assert.ok(!text.includes(WS), 'no path to anything on this computer');
+});
+
+test('a GIRAFE from before the hello still signs the kit in', async () => {
+  revoked = false; helloKnown = false; helloSeen = null;
+  const st = (await call('POST', '/api/session/check')).data;
+  assert.equal(st.signedIn, true);
+  assert.equal(helloSeen, null);
+  helloKnown = true;
+});
+
+test('a cut link still signs the kit out through the hello', async () => {
+  revoked = true;
+  const st = (await call('POST', '/api/session/check')).data;
+  assert.equal(st.signedIn, false);
+  assert.match(st.note, /signed out/i);
+  revoked = false;
 });
