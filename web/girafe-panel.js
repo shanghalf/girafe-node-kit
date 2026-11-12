@@ -149,6 +149,9 @@ export function createGirafePanel({ el, S, api, kindOf, nodeRun, packOf, changed
       input.value = v;
       input.addEventListener(f.type === 'select' ? 'change' : 'input', () => set(f.key, f.type === 'number' ? (input.value === '' ? '' : Number(input.value)) : input.value));
       out.push(field(f.label || f.key, input));
+      // GIRAFE renders a textarea field as a PromptField: right-click (double-tap on touch) offers
+      // Generate / Reprompt on it. That needs GIRAFE's own AI keys, so the kit shows a plain box.
+      if (f.type === 'textarea') out.push(el('p', { class: 'kit-note', text: 'In GIRAFE you can right-click this box to let the AI write or improve the text. The kit has no AI keys, so here it is a plain box.' }));
     }
     const may = [];
     for (const key of c.keys || []) may.push(`use the ${key.service} key you choose below (it never sees the key)`);
