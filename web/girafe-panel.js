@@ -6,6 +6,8 @@
 //
 // It works on the kit's own graph: what you set here is what the kit's panel sets (settings, key
 // slots), so a run uses it.
+// A manifest field may carry "help": one line under it, as GIRAFE shows it (GIRAFE 0.116.3).
+const helpOf = (f) => (typeof f.help === 'string' && f.help.trim() ? f.help.slice(0, 400) : '');
 
 const isRef = (v) => !!(v && typeof v === 'object' && v.key && v.mime);
 const isModel = (r) => isRef(r) && /^model\//.test(r.mime);
@@ -140,6 +142,7 @@ export function createGirafePanel({ el, S, api, kindOf, nodeRun, packOf, changed
         const box = el('input', { type: 'checkbox' }); box.checked = !!v;
         box.addEventListener('change', () => set(f.key, box.checked));
         out.push(el('label', { class: 'pm-field pm-field-check' }, box, ' ', el('span', { text: f.label || f.key })));
+        if (helpOf(f)) out.push(el('p', { class: 'pm-help', text: helpOf(f) }));
         continue;
       }
       let input;
@@ -149,6 +152,7 @@ export function createGirafePanel({ el, S, api, kindOf, nodeRun, packOf, changed
       input.value = v;
       input.addEventListener(f.type === 'select' ? 'change' : 'input', () => set(f.key, f.type === 'number' ? (input.value === '' ? '' : Number(input.value)) : input.value));
       out.push(field(f.label || f.key, input));
+      if (helpOf(f)) out.push(el('p', { class: 'pm-help', text: helpOf(f) }));
       // GIRAFE renders a textarea field as a PromptField: right-click (double-tap on touch) offers
       // Generate / Reprompt on it. That needs GIRAFE's own AI keys, so the kit shows a plain box.
       if (f.type === 'textarea') out.push(el('p', { class: 'kit-note', text: 'In GIRAFE you can right-click this box to let the AI write or improve the text. The kit has no AI keys, so here it is a plain box.' }));
