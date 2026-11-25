@@ -17,6 +17,7 @@ const SERVICES = {
   openai: { label: 'OpenAI', get: 'https://platform.openai.com/api-keys' },
   gemini: { label: 'Google Gemini', get: 'https://aistudio.google.com/apikey' },
   tripo: { label: 'Tripo 3D', get: 'https://platform.tripo3d.ai/api-keys' },
+  cloudflare: { label: 'Cloudflare (Workers AI)', get: 'https://dash.cloudflare.com/profile/api-tokens' },
   github: { label: 'GitHub (your nodes repo)', get: 'https://github.com/settings/personal-access-tokens/new' },
   other: { label: 'Other', get: null },
   // Not pasted: the token a GIRAFE account gives this computer when you connect the kit.

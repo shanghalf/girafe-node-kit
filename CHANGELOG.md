@@ -3,6 +3,15 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.14.1 (2026-11-25)
+
+**A new key service: `cloudflare`** (Cloudflare Workers AI). Declare
+`{ "slot": "cloudflare", "service": "cloudflare", "label": "Cloudflare API token" }` with
+`"network": ["api.cloudflare.com"]`; the token is sent as `Authorization: Bearer`. The account ID
+is part of the address (`/client/v4/accounts/<id>/ai/run/<model>`), so it is a plain field of the
+node, not a key. GIRAFE runs such nodes from 0.122.2 (`"girafe": ">=0.122.2"`). Test runs point it
+at a fake server with `KIT_CLOUDFLARE_URL`. The simulated GIRAFE is now 0.122.2.
+
 ## 0.14.0 (2026-11-11)
 
 **One place, one shortcut, and it keeps itself up to date.** Unzipped in Downloads or on the
