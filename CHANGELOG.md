@@ -3,6 +3,16 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.14.2 (2026-11-26)
+
+**Your nodes come back by themselves.** On a signed-in kit, the GitHub token in GIRAFE's Key bank
+is all it takes: the kit connects to your nodes repository, checks it can read the files, and
+brings every node down. It tries every GitHub token it holds (GIRAFE's first, then the newest),
+never just the first one in the list, so a dead token no longer blocks you. A kit whose token stops
+working tells GIRAFE, which sends the current one again. "Connected" is only said once the files
+can be read, and GitHub's "Resource not accessible" is explained (the token needs Contents: Read
+and write). Needs GIRAFE 0.123.3 for the token to be sent again; nothing changes for plugin authors.
+
 ## 0.14.1 (2026-11-25)
 
 **A new key service: `cloudflare`** (Cloudflare Workers AI). Declare
