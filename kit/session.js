@@ -41,7 +41,7 @@ function status() {
     account: l.account, base: l.base, pending: l.pending,
     trust: s.trust || 'mine',
     idleMinutes: Math.round(IDLE_MS / 60_000),
-    note, error: last.error, profileNote,
+    note, error: last.error, profileNote, profileRepo,
   };
 }
 
@@ -68,7 +68,7 @@ let servingPort = null;
 const servedOn = (port) => { servingPort = Number(port) || null; };
 
 async function chainReport() {
-  const r = { hostname: os.hostname(), port: servingPort, kitVersion: KIT_VERSION, hostApi: HOST_API, autostart: false, github: null, market: null, packs: [] };
+  const r = { hostname: os.hostname(), port: servingPort, kitVersion: KIT_VERSION, hostApi: HOST_API, autostart: false, github: null, market: null, packs: [], needGithub: needGithub() };
   try {
     const g = await require('./github').status(); // no { remote: true }: nothing over the network here
     if (g.connected) {
@@ -126,43 +126,64 @@ async function check() {
   return status();
 }
 
-// One approval, not three. GIRAFE answers every hello with the kit profile: the name of the
-// person's own GitHub repository of nodes, and - exactly once, on this link's first hello - the
-// GitHub key they marked "for my kits" in their Key bank. With both, a kit on a new computer
-// connects itself to that repository, and the nodes that are only on GitHub are there waiting.
-// Nothing is forced: a kit already connected to a repository is left alone, and a profile with no
-// key only says what is missing.
+// Your nodes come back by themselves. GIRAFE answers every hello with the kit profile: the name
+// of the person's GitHub repository of nodes and, whenever this kit says it can't reach that
+// repository (needGithub in the hello), the GitHub key from their Key bank. With both, a kit on a
+// new computer connects, reads the files once to be sure, and brings every node down - no wizard.
+// When it can't, it says the one thing to change (a real report, 2026-11-26: an hour of dialogs,
+// dead tokens kept and picked first, "connected" with no access to the files).
 //
 // The key is treated exactly as a pasted one: it goes into the kit's own key bank, encrypted,
 // service `github`, so it can only ever leave again towards api.github.com (kit/netguard.js).
 let profileNote = null;
+let profileRepo = null; // the repository GIRAFE says holds this person's nodes
+let githubOk = null;    // can this computer read its repository? null = not known yet
 const profileSays = () => profileNote;
+const needGithub = () => githubOk !== true;
 
 async function applyProfile(profile) {
-  if (!profile || typeof profile !== 'object') return;
   const github = require('./github');
   const keys = require('./keys');
+  // How things stand here, whatever GIRAFE said.
+  let st = { connected: false };
+  try { st = await github.status(); } catch { /* not set up */ }
+  if (st.connected) {
+    const w = await github.working();
+    githubOk = w.ok;
+    if (w.ok) return;                                       // reading its repository fine: nothing to do
+  } else githubOk = false;
+  if (!profile || typeof profile !== 'object') return;
   const repo = typeof profile.nodesRepo === 'string' ? profile.nodesRepo.trim() : '';
-  let keyId = null;
+  let fromGirafe = null;
   if (profile.github && typeof profile.github.value === 'string' && profile.github.value.trim()) {
     const value = profile.github.value.trim();
     const print = require('crypto').createHash('sha256').update(value).digest('hex').slice(0, 12);
     const already = keys.list().find((k) => k.service === 'github' && k.fingerprint === print);
-    keyId = already ? already.id : keys.add({ label: profile.github.label || 'GitHub (from my GIRAFE)', service: 'github', value }).id;
+    fromGirafe = already ? already.id : keys.add({ label: profile.github.label || 'GitHub (from my GIRAFE)', service: 'github', value }).id;
   }
-  if (!repo) return;
-  let st;
-  try { st = await github.status(); } catch { return; }
-  if (st.connected) return;                                   // this computer already has a repository
-  if (!keyId) keyId = (keys.list().find((k) => k.service === 'github') || {}).id || null;
-  if (!keyId) { profileNote = `Your GIRAFE says your nodes are in ${repo}, but this computer has no GitHub key yet.`; return; }
-  try {
-    const r = await github.connect({ keyId, repo });
-    const remote = Object.values(r.nodes || {}).filter((n) => n.state === 'remote').length;
-    profileNote = `Connected to ${repo} from your GIRAFE profile${remote ? ` · ${remote} node${remote === 1 ? '' : 's'} waiting on GitHub` : ''}.`;
-  } catch (e) {
-    profileNote = `Could not connect to ${repo} from your GIRAFE profile: ${e.message}`;
+  const target = repo || (st.connected ? `${st.owner}/${st.repo}` : '');
+  if (!target) return;                                      // no repository known anywhere yet
+  profileRepo = target;
+  // Every GitHub key this computer holds, GIRAFE's first, then the newest - never just "the first".
+  const candidates = [fromGirafe, ...keys.list().filter((k) => k.service === 'github')
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).map((k) => k.id)]
+    .filter((id, i, a) => id && a.indexOf(id) === i);
+  if (!candidates.length) {
+    profileNote = `Your nodes are in ${target}. Add your GitHub token in GIRAFE (Settings › Key bank) and this kit connects by itself within a few minutes.`;
+    return;
   }
+  let lastError = null;
+  for (const keyId of candidates) {
+    try {
+      await github.connect({ keyId, repo: target });
+      githubOk = true;
+      const { got, failed } = await github.pullAll();
+      profileNote = `Connected to ${target}${got.length ? ` · ${got.length} node${got.length === 1 ? '' : 's'} brought down from GitHub` : ''}${failed.length ? ` · ${failed.length} could not be read` : ''}.`;
+      return;
+    } catch (e) { lastError = e; }
+  }
+  githubOk = false;
+  profileNote = `Can't reach your nodes in ${target}: ${lastError ? lastError.message : 'no working key'}`;
 }
 
 // Your nodes (not the ones that come with the kit) that GitHub doesn't hold as they are here.
@@ -240,4 +261,4 @@ function startTimers() {
   setInterval(() => { idleCheck().catch(() => {}); }, 60_000).unref();
 }
 
-module.exports = { status, signIn, beat, check, leave, unsaved, saveAll, idleCheck, startTimers, eraseAll, chainReport, applyProfile, profileSays, servedOn, IDLE_MS };
+module.exports = { needGithub, status, signIn, beat, check, leave, unsaved, saveAll, idleCheck, startTimers, eraseAll, chainReport, applyProfile, profileSays, servedOn, IDLE_MS };

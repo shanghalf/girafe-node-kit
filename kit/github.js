@@ -72,6 +72,12 @@ async function gh(s, method, p, body) {
     const msg = data?.message || `HTTP ${res.status}`;
     if (res.status === 401) throw new GitHubError('GitHub refused the token (expired or revoked?). Make a new one and paste it in 🔑 Keys.', 'token', 401);
     if (res.status === 403 && /rate limit/i.test(msg)) throw new GitHubError('GitHub says too many requests for now. Wait a few minutes.', 'rate', 403);
+    // A fine-grained token that sees the repo but may not touch its files - GitHub's own words
+    // say nothing useful about what to change.
+    if (res.status === 403 && /not accessible by (personal access|integration)/i.test(msg)) {
+      const where = s.owner && s.repo ? `${s.owner}/${s.repo}` : 'your nodes repository';
+      throw new GitHubError(`This token can't read the files in ${where}. On GitHub, edit the token (no need to make a new one): Repository access → ${where}, Permissions → Contents: Read and write.`, 'permission', 403);
+    }
     throw new GitHubError(msg, 'github', res.status);
   }
   return data;
@@ -215,6 +221,8 @@ async function connect({ keyId, repo, allowPublic = false }) {
   const old = readSettings();
   s.branch = info.default_branch || 'main';
   s.private = !!info.private;
+  // Seeing the repo is not enough: read its files once before saying "connected".
+  await remoteState(s, { fresh: true });
   // Same repo again: keep what this computer knows.
   if (old && old.owner === owner && old.repo === name) s.synced = old.synced || {};
   s.connectedAt = new Date().toISOString();
@@ -330,6 +338,32 @@ async function update({ id }) {
   return { ok: true, backup: backupDir, status: await status() };
 }
 
+// Bring down every node GitHub holds and this computer doesn't (a new computer, or one wiped).
+// Nodes already here are left alone: those are the person's to compare and choose.
+async function pullAll() {
+  const s = need();
+  const r = await remoteState(s, { fresh: true });
+  const got = []; const failed = [];
+  for (const [id, files] of Object.entries(r.files)) {
+    if (listLocal(id)) continue;
+    try {
+      await writeFromGitHub(s, id, files);
+      const now = readSettings() || s;
+      (now.synced ||= {})[id] = { files, commit: r.head, at: new Date().toISOString() };
+      writeSettings(now);
+      got.push(id);
+    } catch (e) { failed.push({ id, error: e.message }); }
+  }
+  return { got, failed };
+}
+
+// Can the connected key still read the repo? { ok, error } - never throws.
+async function working() {
+  const s = readSettings();
+  if (!s) return { ok: false, error: 'not connected' };
+  try { await remoteState(s, { fresh: true }); return { ok: true }; } catch (e) { return { ok: false, error: e.message, status: e.status || null }; }
+}
+
 async function history({ id }) {
   const s = need(); checkId(id);
   const list = await gh(s, 'GET', `${repoPath(s)}/commits?sha=${encodeURIComponent(s.branch)}&path=${encodeURIComponent(PREFIX + id)}&per_page=30`);
@@ -391,4 +425,4 @@ function lineDiff(a, b) {
   return out;
 }
 
-module.exports = { status, connect, disconnect, save, update, history, restore, diff, scanSecrets, blobSha, parseRepo, stateOf, GitHubError, SECRET_PATTERNS };
+module.exports = { pullAll, working, status, connect, disconnect, save, update, history, restore, diff, scanSecrets, blobSha, parseRepo, stateOf, GitHubError, SECRET_PATTERNS };

@@ -29,6 +29,7 @@ const gh = http.createServer((req, res) => {
   if (p === '/git/ref/heads/main') return send(200, { object: { sha: COMMIT } });
   if (p === `/git/commits/${COMMIT}`) return send(200, { sha: COMMIT, tree: { sha: TREE } });
   if (p === `/git/trees/${TREE}`) return send(200, { truncated: false, tree: [{ path: 'nodes/only-on-github/manifest.json', sha, type: 'blob', mode: '100644' }] });
+  if (p === `/git/blobs/${sha}`) return send(200, { content: only.toString('base64'), encoding: 'base64' });
   send(404, { message: 'Not Found' });
 });
 
@@ -54,8 +55,10 @@ test('a profile with a repository and a key connects this computer by itself', a
   assert.ok(k, 'the key was kept');
   assert.ok(!k.value, 'a listed key never carries its value');
   assert.ok(!fs.readFileSync(path.join(WS, '.kit', 'keys.json'), 'utf8').includes(TOKEN), 'and it is encrypted at rest');
-  // The node that is only on GitHub is seen, so it can be fetched.
-  assert.equal(st.nodes['only-on-github']?.state, 'remote');
+  // The node that was only on GitHub came down by itself.
+  assert.match(session.profileSays(), /1 node brought down/);
+  assert.ok(fs.existsSync(path.join(WS, 'nodes', 'only-on-github', 'manifest.json')));
+  assert.equal(st.nodes['only-on-github']?.state, 'clean');
 });
 
 test('a second hello changes nothing: a computer already connected is left alone', async () => {
@@ -71,6 +74,27 @@ test('the same key twice is kept once', async () => {
   assert.equal(keys.list().filter((k) => k.service === 'github').length, n);
 });
 
+test('a dead token newer than the good one: the kit tries them all and keeps the one that works', async () => {
+  github.disconnect();
+  keys.add({ label: 'Old dead one', service: 'github', value: 'github_pat_DEAD_00000000000000' });
+  await session.applyProfile({ nodesRepo: 'alf/my-nodes' });
+  const st = await github.status();
+  assert.equal(st.connected, true);
+  const used = keys.list().find((k) => k.id === st.keyId);
+  assert.notEqual(used.label, 'Old dead one');
+});
+
+test('a connected kit whose token stopped working reconnects with the one GIRAFE sends', async () => {
+  // Point the connection at the dead key, as after a token was revoked on GitHub.
+  const dead = keys.list().find((k) => k.label === 'Old dead one');
+  const f = path.join(WS, '.kit', 'github.json');
+  const cfg = JSON.parse(fs.readFileSync(f, 'utf8')); cfg.keyId = dead.id; fs.writeFileSync(f, JSON.stringify(cfg));
+  assert.equal(session.needGithub(), false);
+  await session.applyProfile({ nodesRepo: 'alf/my-nodes', github: { label: 'My token', value: TOKEN } });
+  assert.notEqual((await github.status()).keyId, dead.id);
+  assert.equal(session.needGithub(), false);
+});
+
 test('a profile with a name but no key anywhere says what is missing, and breaks nothing', async () => {
   const WS2 = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-profile2-'));
   const env = process.env.GIRAFE_KIT_WORKSPACE;
@@ -79,7 +103,7 @@ test('a profile with a name but no key anywhere says what is missing, and breaks
     for (const k of keys.list().filter((x) => x.service === 'github')) keys.remove(k.id);
     github.disconnect();
     await session.applyProfile({ nodesRepo: 'alf/my-nodes' });
-    assert.match(session.profileSays(), /no GitHub key yet/);
+    assert.match(session.profileSays(), /Add your GitHub token in GIRAFE/);
     assert.equal((await github.status()).connected, false);
   } finally { process.env.GIRAFE_KIT_WORKSPACE = env; fs.rmSync(WS2, { recursive: true, force: true }); }
 });

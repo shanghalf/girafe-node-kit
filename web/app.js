@@ -1416,7 +1416,10 @@ function dialog(title, ...body) {
 function openGitHub() {
   if (S.gh?.connected) return ghOverview();
   const tokens = S.keys.filter((k) => k.service === 'github');
-  const repo = el('input', { placeholder: 'your-name/my-girafe-nodes', value: S.ghRepoDraft || '' });
+  // GIRAFE knows where this person's nodes already are (the kit profile): reconnect to that repo,
+  // never walk them through making a new one (a real report: every new computer did).
+  const known = S.session?.profileRepo || '';
+  const repo = el('input', { placeholder: 'your-name/my-girafe-nodes', value: S.ghRepoDraft || known });
   repo.addEventListener('input', () => { S.ghRepoDraft = repo.value; });
   const keySel = el('select', {}, ...(tokens.length ? tokens.map((k) => el('option', { value: k.id, text: `${k.label} · ${k.masked}` })) : [el('option', { value: '', text: '- no GitHub token yet -' })]));
   const out = el('div');
@@ -1430,6 +1433,30 @@ function openGitHub() {
       if (/public/.test(e.message)) out.append(el('button', { class: 'danger', text: 'Use this public repo anyway', onclick: () => go(true) }));
     }
   };
+  const recheck = async () => {
+    out.replaceChildren(el('div', { class: 'muted', text: 'Asking your GIRAFE…' }));
+    try { S.session = await api('/api/session/check', { method: 'POST' }); await loadKeys(); await loadGitHub(); } catch {}
+    if (S.gh?.connected) { renderPalette(); return ghOverview(); }
+    openGitHub();
+  };
+  if (known) {
+    return dialog(ghTitle('Your nodes are already on GitHub'),
+      el('p', { class: 'desc' }, 'Your GIRAFE says your nodes are in ', el('b', { text: known }), '. Don\'t make a new repo: connect this computer to that one and your nodes come back.'),
+      el('div', { class: 'box' }, el('div', { class: 'box-title', text: '1 · The key, the easy way' }),
+        el('div', { class: 'caps', text: 'Add your GitHub token in GIRAFE › Settings › Key bank. This kit gets it by itself within a few minutes, connects to your repo and brings your nodes down.' }),
+        el('div', { class: 'row' }, el('a', { href: (S.session?.base || 'https://girafe.live') + '/?settings=keybank', target: '_blank', rel: 'noopener', text: 'Open my Key bank' }),
+          el('button', { class: 'primary', text: 'It is there - check now', onclick: recheck }))),
+      el('div', { class: 'box' }, el('div', { class: 'box-title', text: '2 · Or paste the key here' }),
+        el('div', { class: 'caps', text: 'Use the token you made for that repo (or make a new one for it: Contents: Read and write).' }),
+        el('div', { class: 'row' }, el('button', { text: '🔑 Paste it in Keys…', onclick: () => { S.ghReturn = true; openKeys(); } }),
+          el('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener', text: 'Make a token' }))),
+      el('div', { class: 'box' }, el('div', { class: 'box-title', text: '3 · Connect' }),
+        el('div', { class: 'field' }, el('label', { text: 'Repo' }), repo),
+        el('div', { class: 'field' }, el('label', { text: 'Token' }), keySel),
+        el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Connect', disabled: !tokens.length, onclick: () => go() }),
+          el('button', { class: 'link', text: 'Refresh the token list', onclick: async () => { await loadKeys(); openGitHub(); } })),
+        out));
+  }
   dialog(ghTitle('Keep your nodes on GitHub'),
     el('p', { class: 'desc', text: 'Your nodes (workspace/nodes) are saved to a GitHub repo of yours: every save is a version you can go back to, and another computer can get them. Only the node folders go there: never your keys, the signing key, or your test graphs.' }),
     el('div', { class: 'box' }, el('div', { class: 'box-title', text: '1 · Make an empty private repo' }),
@@ -1458,9 +1485,17 @@ function ghOverview() {
   };
   draw();
   const close = dialog(ghTitle('GitHub'),
-    el('div', { class: 'box ok-box' }, el('div', { class: 'box-title', text: '✓ Connected' }),
+    el('div', { class: 'box ' + (g.error ? '' : 'ok-box') }, el('div', { class: 'box-title', text: g.error ? '⚠ Can\'t read your nodes on GitHub' : '✓ Connected' }),
       el('div', { class: 'caps' }, el('a', { href: g.url, target: '_blank', rel: 'noopener', text: `${g.owner}/${g.repo}` }), ` · branch ${g.branch} · ${g.private ? 'private' : 'PUBLIC'}`),
-      g.error ? el('div', { class: 'problems', text: g.error }) : el('div', { class: 'muted', text: g.checkedAt ? 'Checked with GitHub at ' + g.checkedAt.slice(11, 16) : 'Not checked with GitHub yet' })),
+      g.error ? el('div', { class: 'problems', text: g.error }) : el('div', { class: 'muted', text: g.checkedAt ? 'Checked with GitHub at ' + g.checkedAt.slice(11, 16) : 'Not checked with GitHub yet' }),
+      // The fix in one press: ask GIRAFE for the token in the Key bank, try every token held here,
+      // bring the nodes down.
+      g.error ? el('div', { class: 'row' }, el('button', { class: 'primary', text: 'Use the token from my GIRAFE Key bank', onclick: async (ev) => {
+        ev.target.disabled = true; ev.target.textContent = 'Asking GIRAFE…';
+        try { S.session = await api('/api/session/check', { method: 'POST' }); } catch {}
+        await loadKeys(); await loadGitHub({ remote: true }); renderPalette(); ghOverview();
+        if (S.gh?.error && S.session?.profileNote) alert(S.session.profileNote);
+      } })) : null),
     list,
     el('div', { class: 'row' }, el('button', { text: '🔄 Check GitHub now', onclick: async () => { await loadGitHub({ remote: true }); ghOverview(); } }),
       el('button', { class: 'danger', text: 'Stop using GitHub', onclick: async () => { if (!confirm('Stop using this repo? Nothing is deleted: not on GitHub, not here.')) return; await api('/api/github/disconnect', { method: 'POST' }); await loadGitHub(); close(); } })),
