@@ -36,7 +36,11 @@ export function shipHeadline(data) {
   const what = here.kind === 'pack' ? 'the pack' : 'it';
   if (!cols.length) {
     const any = shipColumns(matrix).some((c) => c.tone === 'bad');
-    return any ? 'Something is in the way - see the red one below.' : `Everywhere it can go already has ${what}.`;
+    if (any) return 'Something is in the way - see the red one below.';
+    const off = shipColumns(matrix).filter((c) => c.tone === 'off').map((c) => c.label);
+    return off.length
+      ? `${off.join(' and ')} ${off.length > 1 ? 'are' : 'is'} not connected yet, so it was not counted. Everywhere else already has ${what}. Connect ${off.length > 1 ? 'them' : 'it'} in 🔗 Chain.`
+      : `Everywhere it can go already has ${what}.`;
   }
   const names = cols.map((c) => c.label);
   const where = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
