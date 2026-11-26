@@ -114,7 +114,7 @@ code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 
 .pm-node-status-done { color: #5fd97a; } .pm-node-status-error, .pm-node-status-stopped { color: #e05a5a; } .pm-node-status-skipped { color: #9ca3af; }
 @keyframes pm-status-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 .pm-node-bd { padding: 0.5rem 0.55rem; color: #ccc; min-height: 2.2rem; }
-.pm-node-summary { overflow-wrap: anywhere; }
+.pm-node-summary { overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .pm-node-note { color: #9aa5b4; font-size: 0.75rem; margin-top: 0.3rem; }
 .pm-node-preview { color: #7fb3ff; font-size: 0.75rem; margin-top: 0.3rem; overflow-wrap: anywhere; white-space: pre-wrap; }
 .pm-node-thumb { display: block; width: 100%; max-height: 90px; object-fit: cover; border-radius: 4px; margin-top: 0.35rem; }

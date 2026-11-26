@@ -232,19 +232,25 @@ function summaryOf(n, k) {
   switch (n.type) {
     case 'input': return n.value ? truncate(n.value) : '(empty value)';
     case 'image': return isRef(n.image) ? '✓ image set' : '(upload a picture)';
-    case 'forEach': return 'Streams its wired-in list one item at a time.';
-    case 'collect': return 'Waits for its input to finish, then emits everything as one list.';
+    case 'forEach': return 'one item at a time';
+    case 'collect': return '';
     case 'ask': return n.prompt ? `✋ ${truncate(n.prompt)}` : '(write the question to ask)';
     case 'prompt': return !n.keyId ? '(no API key selected)' : n.prompt ? truncate(n.prompt) : '(no prompt yet)';
-    case 'img': return !n.keyId ? '(no Gemini key selected)' : n.prompt ? `🎨 ${truncate(n.prompt)}` : 'ready to generate (describe it, or wire in text / pictures)';
+    case 'img': return !n.keyId ? '(no Gemini key selected)' : n.prompt ? `🎨 ${truncate(n.prompt)}` : '';
     default:
       if (k.missing) return '⚠️ unknown node type (plugin removed?)';
       if (k.problems?.length) return `⚠️ ${k.problems[0]}`;
-      return k.description || '';
+      {
+        // Facts only, like GIRAFE: what it is set to. The description stays in the panel.
+        const set = n.settings || {};
+        const f = (k.fields || []).find((x) => (x.type === 'textarea' || x.type === 'text') && String(set[x.key] ?? x.default ?? '').trim());
+        return f ? `${k.icon || ''} ${truncate(String(set[f.key] ?? f.default), 60)}`.trim() : '';
+      }
   }
 }
 function nodeBody(n, k, st) {
-  const out = [el('div', { class: 'pm-node-summary', text: summaryOf(n, k) })];
+  const sum = summaryOf(n, k);
+  const out = sum ? [el('div', { class: 'pm-node-summary', text: sum })] : [];
   if (n.type === 'image') {
     if (isRef(n.image)) out.push(el('img', { class: 'pm-node-thumb', src: n.image.imageUrl, alt: '' }));
     const pick = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', class: 'hidden-file-input' });
@@ -1104,6 +1110,13 @@ function openChain() {
         if (key === 'signin') { close(); return openLink(); }
         if (key === 'leave') { close(); return openLeave(); }
         if (key === 'github') { close(); return openGitHub(); }
+        if (key === 'ghRetry') {
+          return (async () => {
+            try { S.session = await api('/api/session/check', { method: 'POST' }); } catch {}
+            await loadKeys().catch(() => {}); await loadGitHub({ remote: true }); renderPalette(); draw();
+          })();
+        }
+        if (key === 'keybank') { window.open((S.session?.base || 'https://girafe.live') + '/?settings=keybank', '_blank', 'noopener'); return undefined; }
         if (key === 'market') { close(); return openMarket(); }
         if (key.startsWith('ship:')) { close(); return openShip(key.slice(5)); }
         return undefined;

@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const store = require('./store');
+const home = require('./home');
 const keys = require('./keys');
 const netguard = require('./netguard');
 
@@ -93,8 +94,8 @@ function parseRepo(text) {
 }
 
 // ---------- local files ----------
-function listLocal(id) {
-  const dir = path.join(store.NODES, id);
+function listLocal(id) { return listDir(path.join(store.NODES, id), id); }
+function listDir(dir, id) {
   const out = {};
   if (!fs.existsSync(dir)) return null;
   const walk = (rel) => {
@@ -345,7 +346,10 @@ async function pullAll() {
   const r = await remoteState(s, { fresh: true });
   const got = []; const failed = [];
   for (const [id, files] of Object.entries(r.files)) {
-    if (listLocal(id)) continue;
+    const local = listLocal(id);
+    // A node that came with the kit and was never touched here: the person's own version on
+    // GitHub wins (a backup of the kit's copy is kept). Anything edited here is theirs to choose.
+    if (local && !(home.SHIPPED.includes(id) && untouchedShipped(id, local) && !sameFiles(local, files))) continue;
     try {
       await writeFromGitHub(s, id, files);
       const now = readSettings() || s;
@@ -355,6 +359,14 @@ async function pullAll() {
     } catch (e) { failed.push({ id, error: e.message }); }
   }
   return { got, failed };
+}
+
+// Is this node exactly the copy the kit ships? (Then nothing of the person's would be lost.)
+function untouchedShipped(id, local) {
+  try {
+    const shipped = listDir(path.join(home.SHIPPED_FROM, 'nodes', id), id);
+    return !!shipped && sameFiles(local, shipped);
+  } catch { return false; }
 }
 
 // Can the connected key still read the repo? { ok, error } - never throws.

@@ -116,6 +116,7 @@ test('a check tells GIRAFE what this computer is running', async () => {
   assert.equal(helloSeen.kitVersion, require('../kit/version').KIT_VERSION);
   assert.equal(helloSeen.hostApi, require('../kit/version').HOST_API);
   assert.equal(helloSeen.github, null, 'GitHub is not set up in this workspace');
+  assert.equal(helloSeen.needGithub, true, 'a kit that cannot read a repository asks GIRAFE for the token');
   assert.equal(helloSeen.market.linked, false);
   assert.ok(Array.isArray(helloSeen.packs));
   // Nothing private: no key, no path, no node contents.

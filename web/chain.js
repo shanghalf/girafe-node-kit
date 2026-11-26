@@ -60,25 +60,44 @@ export function chainRows(S) {
     actions: [link.connected ? { key: 'leave', label: '🚪 Leave this computer' } : { key: 'signin', label: '☁️ Connect to GIRAFE', primary: true }],
   });
 
-  // 3. Your nodes on GitHub.
+  // 3. Your nodes on GitHub - one line: all is well, or the one thing to do. The token lives in
+  // GIRAFE's Key bank; the kit connects and brings the nodes down by itself (session.applyProfile).
   const gh = S.gh || {};
+  const ses = S.session || {};
   const states = gh.connected ? Object.values(gh.nodes || {}) : [];
   const dirty = states.filter((x) => ['changed', 'new', 'conflict', 'deleted'].includes(x.state)).length;
+  const remote = states.filter((x) => x.state === 'remote').length;
   const behind = states.filter((x) => x.state === 'behind').length;
+  const wanted = ses.profileRepo || '';
+  let repo;
+  if (gh.connected && !gh.error) {
+    repo = {
+      tone: dirty ? 'warn' : 'ok',
+      lines: [`${states.length} node${states.length === 1 ? '' : 's'}${dirty ? `, ${dirty} not saved yet` : ', all saved'}${behind ? `, ${behind} newer on GitHub` : ''}${remote ? `, ${remote} not brought here yet` : ''}.`],
+      actions: [{ key: 'github', label: '📁 Your nodes on GitHub' }],
+    };
+  } else if (gh.connected || wanted) {
+    // Known repository, but this computer can't read it (yet): say why, offer the one fix.
+    repo = {
+      tone: 'bad',
+      lines: [gh.error || ses.profileNote || 'Connecting to your nodes…'],
+      actions: [{ key: 'ghRetry', label: '🔄 Use the token from my GIRAFE Key bank', primary: true }, { key: 'keybank', label: '🔑 Open my GIRAFE Key bank' }],
+    };
+  } else {
+    repo = {
+      tone: 'off',
+      lines: ['Your nodes are only on this computer. Keep them in a private GitHub repository to get them on any computer.'],
+      actions: [{ key: 'github', label: '📁 Set it up', primary: true }],
+    };
+  }
   rows.push({
     id: 'repo',
     icon: '📁',
     title: 'Your nodes repository',
-    tone: !gh.connected ? 'off' : dirty ? 'warn' : 'ok',
-    state: gh.connected ? `${gh.owner}/${gh.repo}` : 'Not set up',
-    lines: (gh.connected
-      ? [`${states.length} node${states.length === 1 ? '' : 's'}${dirty ? `, ${dirty} not saved yet` : ', all saved'}${behind ? `, ${behind} newer on GitHub` : ''}.`,
-        'This is where your nodes live between computers - the kit itself is replaced by every update.']
-      : ['Without it, the nodes you build are only on this computer. A private repository and a token are enough.',
-        'Name it once in your GIRAFE (Settings › Node kit) and mark its key in the Key bank: every kit you link then sets itself up.'])
-      // What the GIRAFE profile did on this computer, if anything (session.applyProfile).
-      .concat(S.session?.profileNote ? [S.session.profileNote] : []),
-    actions: [{ key: 'github', label: gh.connected ? '📁 Open GitHub' : '📁 Set it up', primary: !gh.connected }],
+    tone: repo.tone,
+    state: gh.connected ? `${gh.owner}/${gh.repo}` : wanted || 'Not set up',
+    lines: repo.lines,
+    actions: repo.actions,
   });
 
   // 4. The market (optional).

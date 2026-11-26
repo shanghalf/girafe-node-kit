@@ -13,23 +13,33 @@ const WS = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-profile-'));
 process.env.GIRAFE_KIT_WORKSPACE = WS;
 process.env.GIRAFE_KIT_NO_SIGNIN = '1';
 fs.mkdirSync(path.join(WS, 'nodes'), { recursive: true });
+// This computer has the kit's own example node, untouched; GitHub holds the person's version of it.
+fs.cpSync(path.join(__dirname, '..', 'workspace', 'nodes', 'example-upper'), path.join(WS, 'nodes', 'example-upper'), { recursive: true });
 
 // A fake GitHub holding one node this computer has never seen.
 const TOKEN = 'github_pat_FROM_MY_GIRAFE_0123456789';
 const blobSha = (buf) => crypto.createHash('sha1').update(`blob ${buf.length}\0`).update(buf).digest('hex');
 const only = Buffer.from('{"id":"only-on-github","name":"Only","version":"1.0.0","hostApi":2,"outputs":["out"]}');
 const sha = blobSha(only);
+const mine = Buffer.from('{"id":"example-upper","name":"My upper","version":"9.0.0","hostApi":2,"outputs":["out"]}');
+const mineSha = blobSha(mine);
+const NOACCESS = 'github_pat_SEES_THE_REPO_NOT_THE_FILES_00';
 const TREE = 'a'.repeat(40); const COMMIT = 'b'.repeat(40);
 const gh = http.createServer((req, res) => {
   req.resume();
   const send = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
-  if (req.headers.authorization !== `Bearer ${TOKEN}`) return send(401, { message: 'Bad credentials' });
   const p = new URL(req.url, 'http://x').pathname.replace('/repos/alf/my-nodes', '');
+  if (req.headers.authorization === `Bearer ${NOACCESS}`) {
+    if (p === '') return send(200, { private: true, default_branch: 'main', permissions: { push: true } });
+    return send(403, { message: 'Resource not accessible by personal access token' });
+  }
+  if (req.headers.authorization !== `Bearer ${TOKEN}`) return send(401, { message: 'Bad credentials' });
   if (p === '') return send(200, { private: true, default_branch: 'main', permissions: { push: true } });
   if (p === '/git/ref/heads/main') return send(200, { object: { sha: COMMIT } });
   if (p === `/git/commits/${COMMIT}`) return send(200, { sha: COMMIT, tree: { sha: TREE } });
-  if (p === `/git/trees/${TREE}`) return send(200, { truncated: false, tree: [{ path: 'nodes/only-on-github/manifest.json', sha, type: 'blob', mode: '100644' }] });
+  if (p === `/git/trees/${TREE}`) return send(200, { truncated: false, tree: [{ path: 'nodes/only-on-github/manifest.json', sha, type: 'blob', mode: '100644' }, { path: 'nodes/example-upper/manifest.json', sha: mineSha, type: 'blob', mode: '100644' }] });
   if (p === `/git/blobs/${sha}`) return send(200, { content: only.toString('base64'), encoding: 'base64' });
+  if (p === `/git/blobs/${mineSha}`) return send(200, { content: mine.toString('base64'), encoding: 'base64' });
   send(404, { message: 'Not Found' });
 });
 
@@ -56,9 +66,12 @@ test('a profile with a repository and a key connects this computer by itself', a
   assert.ok(!k.value, 'a listed key never carries its value');
   assert.ok(!fs.readFileSync(path.join(WS, '.kit', 'keys.json'), 'utf8').includes(TOKEN), 'and it is encrypted at rest');
   // The node that was only on GitHub came down by itself.
-  assert.match(session.profileSays(), /1 node brought down/);
+  assert.match(session.profileSays(), /2 nodes brought down/);
   assert.ok(fs.existsSync(path.join(WS, 'nodes', 'only-on-github', 'manifest.json')));
   assert.equal(st.nodes['only-on-github']?.state, 'clean');
+  // The kit's own untouched example gave way to the person's version on GitHub.
+  assert.equal(fs.readFileSync(path.join(WS, 'nodes', 'example-upper', 'manifest.json'), 'utf8'), mine.toString());
+  assert.equal(st.nodes['example-upper']?.state, 'clean');
 });
 
 test('a second hello changes nothing: a computer already connected is left alone', async () => {
@@ -93,6 +106,15 @@ test('a connected kit whose token stopped working reconnects with the one GIRAFE
   await session.applyProfile({ nodesRepo: 'alf/my-nodes', github: { label: 'My token', value: TOKEN } });
   assert.notEqual((await github.status()).keyId, dead.id);
   assert.equal(session.needGithub(), false);
+});
+
+test('a token that sees the repo but not its files: never "connected", and the fix is named', async () => {
+  github.disconnect();
+  for (const k of keys.list().filter((x) => x.service === 'github')) keys.remove(k.id);
+  await session.applyProfile({ nodesRepo: 'alf/my-nodes', github: { label: 'Half a token', value: NOACCESS } });
+  assert.equal((await github.status()).connected, false);
+  assert.match(session.profileSays(), /Contents: Read and write/);
+  assert.equal(session.needGithub(), true);
 });
 
 test('a profile with a name but no key anywhere says what is missing, and breaks nothing', async () => {

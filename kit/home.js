@@ -188,4 +188,4 @@ function importFrom(kitDir) {
   return { from: found.path, to, ...report };
 }
 
-module.exports = { resolve, survey, findOtherKits, importFrom, homeWorkspace, LEGACY, SHIPPED, NAME };
+module.exports = { resolve, survey, findOtherKits, importFrom, homeWorkspace, LEGACY, SHIPPED, SHIPPED_FROM, NAME };

@@ -11,7 +11,11 @@ brings every node down. It tries every GitHub token it holds (GIRAFE's first, th
 never just the first one in the list, so a dead token no longer blocks you. A kit whose token stops
 working tells GIRAFE, which sends the current one again. "Connected" is only said once the files
 can be read, and GitHub's "Resource not accessible" is explained (the token needs Contents: Read
-and write). Needs GIRAFE 0.123.3 for the token to be sent again; nothing changes for plugin authors.
+and write). The kit's own example nodes give way to your versions on GitHub when untouched (a
+backup is kept). The Chain panel's repository row says in one line that all is well, or the one
+thing to do, with a "Use the token from my GIRAFE Key bank" button. Node bodies show short facts
+(what a node is set to), as in GIRAFE, and leave room for the status animation. Needs GIRAFE
+0.123.3 for the token to be sent again; nothing changes for plugin authors.
 
 ## 0.14.1 (2026-11-25)
 
