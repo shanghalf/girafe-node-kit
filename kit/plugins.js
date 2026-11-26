@@ -333,7 +333,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
       },
       // ctx.http: the plugin's only way to the internet. The host adds the key of a declared slot
       // (the plugin never sees it) and sends through the network guard.
-      async http({ slot, method = 'GET', url, headers = {}, json, body, form }) {
+      async http({ slot, method = 'GET', url, headers = {}, json, body, form, asFile }) {
         if (plugin.hostApi < 1) throw new Error('ctx.http needs "hostApi": 1 in the manifest');
         let u; try { u = new URL(String(url)); } catch { throw new Error('ctx.http: not a valid address'); }
         if (u.protocol !== 'https:') throw new Error('ctx.http: https addresses only');
@@ -375,14 +375,34 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
           if (total > HTTP_MAX_BYTES) throw new Error('ctx.http: request over 40 MB');
           init.body = fd;
         }
+        else if (body && typeof body === 'object' && body.file) {
+          // host API 2: a file as the raw request body (an audio file for a speech model, say).
+          if (plugin.hostApi < 2) throw new Error('ctx.http file bodies need "hostApi": 2');
+          if (!(plugin.capabilities.files === 'read' || plugin.capabilities.files === 'readwrite')) throw new Error('sending a file needs "capabilities": { "files": "read" }');
+          const p = store.filePath(body.file.key);
+          if (!p || !fs.existsSync(p)) throw new Error('ctx.http body: no such file');
+          const buf = fs.readFileSync(p);
+          if (buf.length > HTTP_MAX_BYTES) throw new Error('ctx.http: request over 40 MB');
+          init.body = buf; h['content-type'] = h['content-type'] || store.mimeOf(body.file.key) || 'application/octet-stream';
+        }
         else if (body !== undefined) init.body = String(body);
         if (typeof init.body === 'string' && init.body.length > HTTP_MAX_BYTES) throw new Error('ctx.http: request over 40 MB');
+        if (asFile && plugin.capabilities.files !== 'readwrite') throw new Error('ctx.http asFile needs "capabilities": { "files": "readwrite" }');
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS);
         const stop = () => ctrl.abort();
         signal && signal.addEventListener('abort', stop, { once: true });
         try {
           const res = await netguard.send(target, { ...init, signal: ctrl.signal }, guard);
+          const type = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+          // host API 2, asFile: a successful answer that isn't JSON or text (audio, a picture) is
+          // kept as a file and its reference returned - text would mangle the bytes.
+          if (asFile && res.ok && type && !/json|^text\//.test(type)) {
+            const buf = Buffer.from(await res.arrayBuffer());
+            if (buf.length > HTTP_MAX_BYTES) throw new Error('ctx.http: answer over 40 MB');
+            const f = store.saveFile(buf, type);
+            return { status: res.status, ok: true, mime: f.mime, file: { imageUrl: '/files/' + f.key, key: f.key, mime: f.mime, size: f.size } };
+          }
           const text = await res.text();
           if (text.length > HTTP_MAX_BYTES) throw new Error('ctx.http: answer over 40 MB');
           let parsed; try { parsed = JSON.parse(text); } catch {}

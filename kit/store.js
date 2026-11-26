@@ -16,8 +16,8 @@ const FILES = path.join(ROOT, '.kit', 'files');
 for (const d of [NODES, GRAPHS, FILES]) fs.mkdirSync(d, { recursive: true });
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const FILE_RE = /^[a-f0-9]{16}\.(png|jpg|webp|gif|bin|txt|json|glb|fbx|obj|stl)$/;
-const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'text/plain': 'txt', 'application/json': 'json', 'model/gltf-binary': 'glb', 'model/fbx': 'fbx', 'model/obj': 'obj', 'model/stl': 'stl' };
+const FILE_RE = /^[a-f0-9]{16}\.(png|jpg|webp|gif|bin|txt|json|glb|fbx|obj|stl|mp3|wav|ogg|flac|m4a|weba)$/;
+const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'text/plain': 'txt', 'application/json': 'json', 'model/gltf-binary': 'glb', 'model/fbx': 'fbx', 'model/obj': 'obj', 'model/stl': 'stl', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg', 'audio/flac': 'flac', 'audio/mp4': 'm4a', 'audio/webm': 'weba' };
 const MIME = Object.fromEntries(Object.entries(EXT).map(([m, e]) => [e, m]));
 
 function listGraphs() {

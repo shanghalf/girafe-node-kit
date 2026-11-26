@@ -3,6 +3,14 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.14.3 (2026-11-26)
+
+**Plugins can speak and listen.** `ctx.http` takes `body: { file: ref }` (a file sent as it is, an
+audio recording for a speech model) and `asFile: true` (an answer that is audio or a picture, sent
+by the service as raw bytes, comes back as a file reference instead of mangled text). The kit keeps
+audio files (mp3, wav, ogg, flac, m4a) and takes them as uploads. Same in GIRAFE 0.124.0. Nothing
+changes for existing nodes.
+
 ## 0.14.2 (2026-11-26)
 
 **Your nodes come back by themselves.** On a signed-in kit, the GitHub token in GIRAFE's Key bank

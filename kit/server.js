@@ -320,7 +320,9 @@ async function handle(req, res) {
     const ext = (String(url.searchParams.get('name') || '').toLowerCase().match(/\.(glb|fbx|obj|stl)$/) || [])[1];
     // A 3D model (for a file field): told by its name, browsers rarely know its type.
     if (ext) mime = MODEL_EXT[ext];
-    if (!/^image\/(png|jpeg|webp|gif)$/.test(mime) && !Object.values(MODEL_EXT).includes(mime)) return send(res, 400, { error: 'PNG, JPEG, WebP or GIF pictures, or GLB, FBX, OBJ or STL models only' });
+    const audioExt = (String(url.searchParams.get('name') || '').toLowerCase().match(/\.(mp3|wav|ogg|flac|m4a)$/) || [])[1];
+    if (audioExt) mime = { mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', flac: 'audio/flac', m4a: 'audio/mp4' }[audioExt];
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(mime) && !/^audio\/(mpeg|wav|ogg|flac|mp4)$/.test(mime) && !Object.values(MODEL_EXT).includes(mime)) return send(res, 400, { error: 'PNG, JPEG, WebP or GIF pictures, MP3, WAV, OGG, FLAC or M4A audio, or GLB, FBX, OBJ or STL models only' });
     const buf = await readBody(req, ext ? MAX_MODEL_UPLOAD : MAX_UPLOAD);
     if (mime === 'model/gltf-binary' && buf.subarray(0, 4).toString('latin1') !== 'glTF') return send(res, 400, { error: 'This .glb file is not a GLB model.' });
     const f = store.saveFile(buf, mime);
