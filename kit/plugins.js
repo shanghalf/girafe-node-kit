@@ -262,6 +262,9 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
 
     // The host side of the host API. Every capability a plugin uses comes through here.
     let usageCount = 0;
+    // Paid calls made with a key and not priced with ctx.usage: GIRAFE logs them anyway (cost unknown).
+    const keyedCalls = {};
+    const reported = new Set();
     let sentChars = 0;
     const host = {
       emit({ port, value }) {
@@ -335,6 +338,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
         const n = Number(units);
         if (!Number.isFinite(n) || n < 0 || n >= 1e6) throw new Error('ctx.usage: "units" is a number from 0');
         if (++usageCount > 500) throw new Error('ctx.usage: more than 500 reports from one firing');
+        reported.add(service);
         const usd = Math.round(n * (Number(b.usdPerUnit) || 0) * 10000) / 10000;
         const word = n === 1 ? b.unit : (b.units || b.unit + 's');
         keepLog(`💲 ${service}: ${n} ${word} (≈ $${usd})${taskId ? ' · task ' + String(taskId).slice(0, 100) : ''}${type ? ' · ' + String(type).slice(0, 40) : ''}${label ? ' · ' + String(label).slice(0, 120) : ''}${model ? ' · ' + String(model).slice(0, 60) : ''}${failed === true ? ' · failed' : ''}`);
@@ -403,6 +407,7 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
         signal && signal.addEventListener('abort', stop, { once: true });
         try {
           const res = await netguard.send(target, { ...init, signal: ctrl.signal }, guard);
+          if (guard.service && init.method !== 'GET' && res.ok) keyedCalls[guard.service] = (keyedCalls[guard.service] || 0) + 1;
           const type = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
           // host API 2, asFile: a successful answer that isn't JSON or text (audio, a picture) is
           // kept as a file and its reference returned - text would mangle the bytes.
@@ -441,7 +446,9 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
               for (const [port, value] of Object.entries(r)) if (value !== undefined && value !== null) outputs.push({ port, value: toWire(value) });
             } else outputs.push({ port: plugin.outputs[0], value: toWire(r) });
           }
-          finish(null, { outputs, shown, logs });
+          const unpriced = Object.entries(keyedCalls).filter(([svc]) => !reported.has(svc));
+          if (unpriced.length) keepLog(`⚠️ ${unpriced.map(([svc, c]) => `${c} ${svc} call${c === 1 ? '' : 's'}`).join(', ')} without ctx.usage: GIRAFE logs them with no price. Report what they cost (HOST_API.md › Billing).`);
+          finish(null, { outputs, shown, logs, unpriced: Object.fromEntries(unpriced) });
         } else finish(new Error(msg.error || 'the node failed'));
       }
     });

@@ -108,6 +108,13 @@ the kind of task, as in its history), `label`, `model` and `failed: true` are op
 older than 0.73.0 has no `ctx.usage`: write `if (ctx.usage) await ctx.usage(...)` if your node may
 run there. The kit checks each report and shows it in the node's log (💲 line).
 
+**Every paid call is logged, priced or not** (GIRAFE 0.124.5). A call your node makes with a key
+slot (anything but a GET) that succeeds, at a service it reports nothing for in that firing, is
+filed in the user's AI reports anyway, as "cost not reported by the node" with no price, and the
+node's note says so. Report your calls with `ctx.usage` so they carry a cost: a service that bills
+in dollars can declare `"unit": "dollar", "usdPerUnit": 1` and report the dollars it computed
+(what the Hugging Face explorer and Gemini image nodes do). The kit warns in the node's log.
+
 ## manifest.json
 
 ```json
