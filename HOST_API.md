@@ -155,7 +155,7 @@ run there. The kit checks each report and shows it in the node's log (💲 line)
 
 | `"network": ["api.example.com"]` | `ctx.http` and `ctx.files.fromUrl` to these hosts (https only). Nothing else on the internet. Host API 2: `"*.example.com"` = any host under example.com (for a service's download servers). |
 | `"state": true` | Host API 2. `ctx.state`: a small object kept for this node on the canvas, across runs. |
-| `"keys": [{ "slot": "gemini", "service": "gemini", "label": "Gemini API key" }]` | A key slot. The user picks which of their keys fills it in the node's panel; `ctx.http({ slot: "gemini", ... })` sends with that key added by the host. **Your code never sees the key.** Services: `anthropic`, `openai`, `gemini`, and (host API 2) `tripo` and `cloudflare` (GIRAFE 0.122.2; the account ID goes in the address, so keep it a field); the service's API host must be in `network`. |
+| `"keys": [{ "slot": "gemini", "service": "gemini", "label": "Gemini API key" }]` | A key slot. The user picks which of their keys fills it in the node's panel; `ctx.http({ slot: "gemini", ... })` sends with that key added by the host. **Your code never sees the key.** Services: `anthropic`, `openai`, `gemini`, and (host API 2) `tripo`, `cloudflare` (GIRAFE 0.122.2; the account ID goes in the address, so keep it a field) and `huggingface` (GIRAFE 0.124.2; sent to `router.huggingface.co` and `huggingface.co`); the service's API host must be in `network`. |
 
 Coming later, declared the same way: `"ai": true` (`ctx.ai.ask`), and more key services.
 

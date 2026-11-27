@@ -17,14 +17,14 @@ const netguard = require('./netguard');
 const pluginState = require('./plugin-state');
 const HTTP_TIMEOUT_MS = 120_000;
 const HTTP_MAX_BYTES = 40 * 1024 * 1024;
-const KEY_SERVICES = ['anthropic', 'openai', 'gemini', 'tripo', 'cloudflare'];
+const KEY_SERVICES = ['anthropic', 'openai', 'gemini', 'tripo', 'cloudflare', 'huggingface'];
 const KEY_SERVICES_V1 = ['anthropic', 'openai', 'gemini'];
-const BEARER = new Set(['openai', 'tripo', 'cloudflare']);
+const BEARER = new Set(['openai', 'tripo', 'cloudflare', 'huggingface']);
 const DOWNLOAD_MAX_BYTES = 200 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 20 * 60_000;
 const MAX_SECONDS = 3600;
 // Where each service's official API starts; test runs swap it for a fake server (KIT_*_URL).
-const OFFICIAL_BASE = { gemini: ['https://generativelanguage.googleapis.com/v1beta/models', 'KIT_GEMINI_URL'], anthropic: ['https://api.anthropic.com/v1', 'KIT_ANTHROPIC_URL'], openai: ['https://api.openai.com/v1', 'KIT_OPENAI_URL'], tripo: ['https://openapi.tripo3d.ai/v3', 'KIT_TRIPO_URL'], tripoCom: ['https://openapi.tripo3d.com/v3', 'KIT_TRIPO_COM_URL'], cloudflare: ['https://api.cloudflare.com/client/v4', 'KIT_CLOUDFLARE_URL'] };
+const OFFICIAL_BASE = { gemini: ['https://generativelanguage.googleapis.com/v1beta/models', 'KIT_GEMINI_URL'], anthropic: ['https://api.anthropic.com/v1', 'KIT_ANTHROPIC_URL'], openai: ['https://api.openai.com/v1', 'KIT_OPENAI_URL'], tripo: ['https://openapi.tripo3d.ai/v3', 'KIT_TRIPO_URL'], tripoCom: ['https://openapi.tripo3d.com/v3', 'KIT_TRIPO_COM_URL'], cloudflare: ['https://api.cloudflare.com/client/v4', 'KIT_CLOUDFLARE_URL'], huggingface: ['https://router.huggingface.co', 'KIT_HUGGINGFACE_URL'], huggingfaceHub: ['https://huggingface.co', 'KIT_HUGGINGFACE_HUB_URL'] };
 // Test runs: an address under a service's official base goes to its fake server instead.
 function testRedirect(target) {
   for (const [official, env] of Object.values(OFFICIAL_BASE)) if (process.env[env] && target.startsWith(official)) return process.env[env] + target.slice(official.length);

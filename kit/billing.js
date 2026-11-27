@@ -7,7 +7,7 @@
 // hosts; "csv" maps the columns of the history file the service exports.
 // Same rules as GIRAFE (server/plugins/manifest.js checkBilling) - keep the two in step.
 const { OFFICIAL } = require('./netguard');
-const KEY_SERVICES = ['anthropic', 'openai', 'gemini', 'tripo', 'cloudflare'];
+const KEY_SERVICES = ['anthropic', 'openai', 'gemini', 'tripo', 'cloudflare', 'huggingface'];
 const KEY_HOSTS = Object.fromEntries(KEY_SERVICES.map((s) => [s, OFFICIAL[s] || []]));
 
 const BILL_PATH_RE = /^[A-Za-z0-9_]{1,40}(\.[A-Za-z0-9_]{1,40}){0,5}$/;

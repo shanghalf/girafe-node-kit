@@ -3,6 +3,14 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.14.4 (2026-11-27)
+
+**A Hugging Face key service.** A key slot can name `"service": "huggingface"`: the key (a Hugging
+Face access token, `hf_…`) goes as a Bearer token to `router.huggingface.co` (the Inference
+Providers router) and `huggingface.co` (the Hub, to ask which providers serve a model), and nowhere
+else. Put `router.huggingface.co` in `network`. Same in GIRAFE 0.124.2. Tests point both at a fake
+with `KIT_HUGGINGFACE_URL` / `KIT_HUGGINGFACE_HUB_URL`.
+
 ## 0.14.3 (2026-11-26)
 
 **Plugins can speak and listen.** `ctx.http` takes `body: { file: ref }` (a file sent as it is, an

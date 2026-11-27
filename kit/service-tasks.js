@@ -10,7 +10,7 @@ const TASK_RE = /^[A-Za-z0-9._:-]{4,100}$/;
 const MAX_PAGES = 30;
 const MAX_ITEMS = 1000;
 const DAY = 86400000;
-const BEARER = new Set(['openai', 'tripo', 'cloudflare']);
+const BEARER = new Set(['openai', 'tripo', 'cloudflare', 'huggingface']);
 // Test runs: the official address goes to a fake server (KIT_*_URL), like ctx.http.
 const TEST_BASE = { tripo: [['https://openapi.tripo3d.ai/v3', 'KIT_TRIPO_URL'], ['https://openapi.tripo3d.com/v3', 'KIT_TRIPO_COM_URL']] };
 function testRedirect(service, url) {

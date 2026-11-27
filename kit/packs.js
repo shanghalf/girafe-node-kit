@@ -16,7 +16,7 @@ const store = require('./store');
 const PACK_FILE = 'pack.json';
 const KEYS_FILE = path.join(store.ROOT, '.kit', 'pack-keys.json');
 const MAX_NODES = 32;
-const KEY_SERVICES = ['anthropic', 'openai', 'gemini', 'tripo', 'cloudflare'];
+const KEY_SERVICES = ['anthropic', 'openai', 'gemini', 'tripo', 'cloudflare', 'huggingface'];
 
 const isPackDir = (id) => fs.existsSync(path.join(store.NODES, id, PACK_FILE)) && !fs.existsSync(path.join(store.NODES, id, 'node.js'));
 function readPack(id) { try { return JSON.parse(fs.readFileSync(path.join(store.NODES, id, PACK_FILE), 'utf8')); } catch (e) { return { __error: e.message }; } }
