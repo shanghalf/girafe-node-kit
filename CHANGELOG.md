@@ -3,6 +3,14 @@
 The kit simulates a given GIRAFE release and host API. When either changes, it's noted here
 with what plugin authors need to do.
 
+## 0.14.5 (2026-11-27)
+
+**Response headers, and a line under a select.** `ctx.http` answers now carry `headers`: the few a
+node may read - `x-inference-*`, `x-compute-*`, `x-request-id`, `x-ratelimit-*`, `retry-after`
+(never a cookie). Hugging Face says there which provider served a call. A select option may be
+`[value, label, about]`: the panel shows the chosen option's "about" under the list and changes it
+with the choice. Same in GIRAFE 0.124.4. Nothing to change in existing nodes.
+
 ## 0.14.4 (2026-11-27)
 
 **A Hugging Face key service.** A key slot can name `"service": "huggingface"`: the key (a Hugging

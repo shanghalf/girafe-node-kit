@@ -152,6 +152,14 @@ export function createGirafePanel({ el, S, api, kindOf, nodeRun, packOf, changed
       input.value = v;
       input.addEventListener(f.type === 'select' ? 'change' : 'input', () => set(f.key, f.type === 'number' ? (input.value === '' ? '' : Number(input.value)) : input.value));
       out.push(field(f.label || f.key, input));
+      if (f.type === 'select') {
+        // An option may be [value, label, about]: the chosen one's "about" says what it does.
+        const aboutOf = (val) => { const o = (f.options || []).find((x) => Array.isArray(x) && String(x[0]) === String(val)); return o && typeof o[2] === 'string' ? o[2].trim().slice(0, 400) : ''; };
+        const about = el('p', { class: 'pm-help pm-option-about', text: aboutOf(v) ? '💡 ' + aboutOf(v) : '' });
+        about.hidden = !aboutOf(v);
+        input.addEventListener('change', () => { const a = aboutOf(input.value); about.textContent = a ? '💡 ' + a : ''; about.hidden = !a; });
+        out.push(about);
+      }
       if (helpOf(f)) out.push(el('p', { class: 'pm-help', text: helpOf(f) }));
       // GIRAFE renders a textarea field as a PromptField: right-click (double-tap on touch) offers
       // Generate / Reprompt on it. That needs GIRAFE's own AI keys, so the kit shows a plain box.

@@ -93,3 +93,4 @@
 .gf .pm-tasks-units { grid-area: units; color: #c9a25a; font-variant-numeric: tabular-nums; }
 .gf .pm-tasks-id { grid-area: id; color: #8a93a6; font-size: 0.7rem; }
 @media (prefers-reduced-motion: reduce) { .gf .pm-tasks-row { transition: none; } }
+.gf .pm-option-about { color: #d6dde8; border-left: 2px solid #7fb3ff; padding-left: 8px; }

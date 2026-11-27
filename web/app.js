@@ -607,6 +607,13 @@ function field(f, value, onInput) {
   if (f.type === 'checkbox') { input.checked = !!value; input.addEventListener('change', () => onInput(input.checked)); return el('div', { class: 'field check' }, el('label', {}, input, f.label || f.key)); }
   input.value = value ?? '';
   input.addEventListener('input', () => onInput(f.type === 'number' ? (input.value === '' ? '' : Number(input.value)) : input.value));
+  if (f.type === 'select') {
+    // An option may be [value, label, about]: the chosen one's "about" says what it does.
+    const aboutOf = (val) => { const o = (f.options || []).find((x) => Array.isArray(x) && String(x[0]) === String(val)); return o && typeof o[2] === 'string' ? o[2].trim().slice(0, 400) : ''; };
+    const about = el('p', { class: 'muted', text: aboutOf(input.value) ? '💡 ' + aboutOf(input.value) : '' });
+    input.addEventListener('change', () => { const a = aboutOf(input.value); about.textContent = a ? '💡 ' + a : ''; });
+    return el('div', { class: 'field' }, el('label', { text: f.label || f.key }), input, about);
+  }
   return el('div', { class: 'field' }, el('label', { text: f.label || f.key }), input);
 }
 // ---------- packages and the GIRAFE link ----------

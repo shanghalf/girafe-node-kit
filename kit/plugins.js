@@ -17,6 +17,15 @@ const netguard = require('./netguard');
 const pluginState = require('./plugin-state');
 const HTTP_TIMEOUT_MS = 120_000;
 const HTTP_MAX_BYTES = 40 * 1024 * 1024;
+// The few response headers a node may read (ctx.http's "headers"): which provider served a call, the
+// compute it used, rate limits. Never a cookie, never anything that could carry a secret.
+const READABLE_HEADER = /^(x-inference-[a-z-]+|x-compute-[a-z-]+|x-request-id|x-ratelimit-[a-z-]+|retry-after)$/;
+function readableHeaders(h) {
+  const out = {};
+  let n = 0;
+  if (h && typeof h.forEach === 'function') h.forEach((v, k) => { k = String(k).toLowerCase(); if (n < 20 && READABLE_HEADER.test(k)) { out[k] = String(v).slice(0, 200); n += 1; } });
+  return out;
+}
 const KEY_SERVICES = ['anthropic', 'openai', 'gemini', 'tripo', 'cloudflare', 'huggingface'];
 const KEY_SERVICES_V1 = ['anthropic', 'openai', 'gemini'];
 const BEARER = new Set(['openai', 'tripo', 'cloudflare', 'huggingface']);
@@ -401,12 +410,12 @@ function runPlugin(plugin, { inputs, settings, keySlots, title, signal, onProgre
             const buf = Buffer.from(await res.arrayBuffer());
             if (buf.length > HTTP_MAX_BYTES) throw new Error('ctx.http: answer over 40 MB');
             const f = store.saveFile(buf, type);
-            return { status: res.status, ok: true, mime: f.mime, file: { imageUrl: '/files/' + f.key, key: f.key, mime: f.mime, size: f.size } };
+            return { status: res.status, ok: true, headers: readableHeaders(res.headers), mime: f.mime, file: { imageUrl: '/files/' + f.key, key: f.key, mime: f.mime, size: f.size } };
           }
           const text = await res.text();
           if (text.length > HTTP_MAX_BYTES) throw new Error('ctx.http: answer over 40 MB');
           let parsed; try { parsed = JSON.parse(text); } catch {}
-          return { status: res.status, ok: res.ok, json: parsed, text: parsed === undefined ? text.slice(0, 1_000_000) : undefined };
+          return { status: res.status, ok: res.ok, headers: readableHeaders(res.headers), json: parsed, text: parsed === undefined ? text.slice(0, 1_000_000) : undefined };
         } catch (e) {
           if (e instanceof netguard.Blocked) throw e;
           if (ctrl.signal.aborted) throw new Error(signal && signal.aborted ? 'Stopped' : `ctx.http: no answer from ${u.hostname} after ${HTTP_TIMEOUT_MS / 1000} s`);
